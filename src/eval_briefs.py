@@ -212,6 +212,10 @@ def main():
         report += (
             f"| {metric} | {fmt(metrics['base'][metric])} | {fmt(metrics['adapter'][metric])} |\n"
         )
+    report += (
+        f"\nRecovery scored on {metrics['adapter']['recoverable_known_n']} derivable rows; "
+        f"near-miss distinction scored on {metrics['adapter']['near_miss_n']} labeled rows.\n"
+    )
     report += f"\n**{result['gates']['decision']}**\n\n"
     report += "Grounding is a numbers/acronyms heuristic, not a semantic judge. The held-out source labels and recovery heuristic are noisy.\n"
     out.with_suffix(".md").write_text(report)
@@ -221,6 +225,23 @@ def main():
     for i in dict.fromkeys(indexes + failures):
         rubric += f"\n## {evaluation[i]['report_id']}\n\n{evaluation[i]['narrative']}\n\n{predictions[i]['adapter']['text']}\n\nScores / notes: pending\n"
     out.with_name(out.name + "_rubric.md").write_text(rubric)
+    lesson_indexes = random.Random(config["seed"] + 1).sample(
+        range(len(evaluation)), min(50, len(evaluation))
+    )
+    lessons = (
+        "# Lesson review\n\nCheck each lesson for one sentence and no unsupported facts or fixes.\n"
+    )
+    for i in lesson_indexes:
+        try:
+            lesson = parse_brief(predictions[i]["adapter"]["text"]).lesson
+        except ValueError:
+            lesson = "Invalid brief; raw output follows:\n\n" + predictions[i]["adapter"]["text"]
+        lessons += (
+            f"\n## {evaluation[i]['report_id']}\n\n"
+            f"### Narrative\n\n{evaluation[i]['narrative']}\n\n"
+            f"### Lesson\n\n{lesson}\n\nGrounded / useful / notes: pending\n"
+        )
+    out.with_name(out.name + "_lessons.md").write_text(lessons)
     print(report)
 
 

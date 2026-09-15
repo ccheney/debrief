@@ -105,7 +105,9 @@ base weights, prompt, seed per row, temperature 0.2, top-p 0.9, top-k 20 and
 400-token budget. It checks ID/group/narrative disjointness before generation.
 
 Outputs: paired predictions, per-report scores, base/adapter table, explicit
-acceptance gates and a 20-row rubric packet plus grounding failures. `--limit 10`
+acceptance gates, a 20-row rubric packet plus grounding failures, and a 50-row
+lesson review packet. Full-narrative packets stay out of git; commit condensed
+review notes after inspection. `--limit 10`
 is labeled a smoke test; it cannot establish acceptance. `--predictions FILE`
 re-scores an existing complete paired run without CUDA.
 

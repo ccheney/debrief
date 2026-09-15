@@ -4,10 +4,12 @@ import argparse
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 import subprocess
 import time
 
+from src.checkpoints import resolve_resume
 from src.common import DEFAULT_CONFIG, read_config, read_jsonl, sha256, write_json
 from src.schema import SYSTEM_PROMPT, parse_brief
 from src.prompt import FORMAT, messages_for
@@ -52,7 +54,18 @@ def main():
     parser.add_argument("--seq-length", type=int)
     parser.add_argument("--rank", type=int)
     parser.add_argument("--attention-only", action="store_true")
+    parser.add_argument(
+        "--run-id", help="Isolate checkpoints, adapter, logs, and metadata for a diagnostic run"
+    )
+    parser.add_argument(
+        "--stop-after-steps", type=int, help="Save a checkpoint and pause after this optimizer step"
+    )
     args = parser.parse_args()
+    if args.run_id and not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.run_id):
+        parser.error("--run-id must contain lowercase letters, numbers, and hyphens")
+    for name in ("max_steps", "stop_after_steps"):
+        if getattr(args, name) is not None and getattr(args, name) <= 0:
+            parser.error(f"--{name.replace('_', '-')} must be positive")
     config = read_config(args.config)
     if args.seq_length:
         config["max_seq_length"] = args.seq_length
@@ -60,12 +73,18 @@ def main():
         config["lora_rank"] = config["lora_alpha"] = args.rank
     if args.attention_only:
         config["target_modules"] = ["q_proj", "k_proj", "v_proj", "o_proj"]
-    run_name = "dry-run" if args.dry_run else "asrs-v01"
-    out = Path("checkpoints/dry-run" if args.dry_run else config["output_dir"])
+    run_name = args.run_id or ("dry-run" if args.dry_run else "asrs-v01")
+    if args.run_id:
+        config["output_dir"] = f"checkpoints/{args.run_id}"
+        config["adapter_dir"] = f"adapters/{args.run_id}"
+    out = Path("checkpoints/dry-run" if args.dry_run and not args.run_id else config["output_dir"])
     adapter_dir = Path(
-        "adapters/debrief-qwen3-8b-dry-run" if args.dry_run else config["adapter_dir"]
+        "adapters/debrief-qwen3-8b-dry-run"
+        if args.dry_run and not args.run_id
+        else config["adapter_dir"]
     )
-    meta_path = Path(f"eval_runs/{'dry_run' if args.dry_run else 'train'}_meta.json")
+    meta_name = args.run_id or ("dry_run" if args.dry_run else "train")
+    meta_path = Path(f"eval_runs/{meta_name}_meta.json")
     if adapter_dir.exists() and not args.resume:
         raise ValueError(
             f"Adapter output exists: {adapter_dir}. Choose a new directory or --resume."
@@ -86,10 +105,12 @@ def main():
             raise ValueError(
                 "Gold review is missing, incomplete, or belongs to a different dataset"
             )
+    train_digest = sha256(config["train_file"])
     rows = read_jsonl(config["train_file"])
     validate_training_rows(rows)
     if args.dry_run:
         rows = rows[:100]
+    resume = resolve_resume(out, args.resume, config, train_digest, expected_train_rows=len(rows))
     # A train-only loss probe avoids evaluating the held-out benchmark during fitting.
     # This is NOT a validation score; the report labels its origin explicitly.
     probe = rows[:32]
@@ -111,7 +132,11 @@ def main():
         "started_at": started,
         "train_rows": len(rows),
         "eval_loss_source": "32 training rows (monitor only)",
-        "train_sha256": sha256(config["train_file"]),
+        "train_sha256": train_digest,
+        "resume_checkpoint": resume,
+        "max_steps_override": args.max_steps,
+        "pause_after_step": args.stop_after_steps,
+        "optimizer_steps_this_attempt": 0,
         "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
         "schema_prompt_sha256": hashlib.sha256(FORMAT.encode()).hexdigest(),
         "git_commit": subprocess.run(
@@ -212,45 +237,39 @@ def main():
         # A broken mask can silently train on zero assistant tokens.
         if any(not any(label != -100 for label in row["labels"]) for row in trainer.train_dataset):
             raise ValueError("Assistant response mask is empty")
-        resume = args.resume
-        if resume == "latest":
-            from transformers.trainer_utils import get_last_checkpoint
-
-            resume = get_last_checkpoint(str(out))
-            if not resume:
-                raise ValueError(f"No checkpoint found in {out}")
-        if resume:
-            previous = Path(resume) / "debrief_run.json"
-            if not previous.exists():
-                raise ValueError("Checkpoint has no Debrief provenance")
-            provenance = json.loads(previous.read_text())
-            if (
-                provenance["train_sha256"] != metadata["train_sha256"]
-                or provenance["config"] != config
-            ):
-                raise ValueError("Resume dataset or training config differs from checkpoint")
         from transformers import TrainerCallback
 
         class ProvenanceCallback(TrainerCallback):
+            def on_step_end(self, args, state, control, **kwargs):
+                metadata["optimizer_steps_this_attempt"] += 1
+                if pause_after is not None and state.global_step >= pause_after:
+                    control.should_save = True
+                    control.should_training_stop = True
+                return control
+
             def on_save(self, args, state, control, **kwargs):
                 write_json(
                     Path(args.output_dir) / f"checkpoint-{state.global_step}" / "debrief_run.json",
                     metadata,
                 )
 
+        pause_after = args.stop_after_steps
         trainer.add_callback(ProvenanceCallback())
         result = trainer.train(resume_from_checkpoint=resume)
         if not math.isfinite(result.training_loss):
             raise RuntimeError("Training loss is non-finite")
-        model.save_pretrained(str(adapter_dir))
-        tokenizer.save_pretrained(str(adapter_dir))
-        write_json(adapter_dir / "debrief_config.json", config)
+        paused = trainer.state.global_step < trainer.state.max_steps
         metadata.update(
-            status="complete",
+            status="paused" if paused else "complete",
             metrics=result.metrics,
             global_step=trainer.state.global_step,
+            planned_steps=trainer.state.max_steps,
             history=trainer.state.log_history,
         )
+        if not paused:
+            model.save_pretrained(str(adapter_dir))
+            tokenizer.save_pretrained(str(adapter_dir))
+            write_json(adapter_dir / "debrief_config.json", config)
         # Keep an inspectable CSV; no dashboard required.
         import csv
 

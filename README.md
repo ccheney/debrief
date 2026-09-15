@@ -78,7 +78,9 @@ teacher model writes gold prose. See [mapping notes](docs/data-design.md).
 Default: sequence 2048, rank/alpha 16/16, batch 1, accumulation 8, cosine LR 2e-4,
 5% warmup, 2 epochs, no packing, Unsloth gradient checkpointing and bf16 on the
 3080 Ti. Loss is masked to assistant completions. Epoch checkpoints retain the
-last two and can resume with `--resume latest`; changed data/config is rejected.
+last two and can resume with `--resume latest`; changed data/config or training
+subset is rejected before GPU allocation. Incomplete newer saves are skipped.
+See [resume verification](docs/resume-verification.md) for the isolated GPU test.
 
 The 50-step dry run uses 100 rows and a separate adapter/checkpoint directory.
 Measure peak VRAM before a full run. If necessary try `--seq-length 1536`, then

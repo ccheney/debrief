@@ -13,7 +13,7 @@ case "${1:-help}" in
     ssh "$SERVER" "cd '$REMOTE' && docker build -t briefcard:0.1 ."
     ;;
   status)
-    ssh "$SERVER" "nvidia-smi; docker ps -a --filter name=briefcard --format '{{.Names}} {{.Status}}'; tail -5 '$REMOTE/logs/train.log' 2>/dev/null || true"
+    ssh "$SERVER" "nvidia-smi; docker ps -a --filter name=debrief --format '{{.Names}} {{.Status}}'; cd '$REMOTE' && python3 scripts/status.py"
     ;;
   run)
     shift

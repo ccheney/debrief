@@ -9,7 +9,7 @@ import random
 import statistics
 import sys
 
-from src.common import DEFAULT_CONFIG, read_config, read_jsonl, sha256, write_json
+from src.common import DEFAULT_CONFIG, adapter_config, read_config, read_jsonl, sha256, write_json
 from src.schema import grounding_flags, parse_brief
 
 
@@ -23,6 +23,7 @@ def score_output(row, text, token_count):
         "phase_correct": False,
         "recoverable_correct": False,
         "recoverable_known": gold.recoverable != "Unknown",
+        "recoverable_gold": gold.recoverable,
         "grounding_fail": any(flags.values()),
         "grounding_flags": flags,
         "tokens": token_count,
@@ -69,6 +70,10 @@ def aggregate(scores):
         "near_miss_distinct": mean("near_miss_distinct", near),
         "near_miss_n": len(near),
         "recoverable_distribution": dict(Counter(row["recoverable_prediction"] for row in scores)),
+        "recoverable_gold_distribution": dict(Counter(row["recoverable_gold"] for row in known)),
+        "recoverable_known_distribution": dict(
+            Counter(row["recoverable_prediction"] for row in known)
+        ),
     }
 
 
@@ -85,10 +90,12 @@ def decide(base, adapter):
             and base["recoverable_known_acc"] is not None
             and adapter["recoverable_known_acc"] > base["recoverable_known_acc"]
         ),
-        "recoverable_not_collapsed": sum(
-            v > 0 for k, v in adapter["recoverable_distribution"].items() if k != "invalid"
-        )
-        >= 2,
+        "recoverable_binary_support": all(
+            adapter["recoverable_gold_distribution"].get(label, 0) > 0 for label in ("Yes", "No")
+        ),
+        "recoverable_not_collapsed": all(
+            adapter["recoverable_known_distribution"].get(label, 0) > 0 for label in ("Yes", "No")
+        ),
     }
     if not checks["grounding_not_worse"]:
         decision = "STOP: adapter grounding is worse than base; do not ship"
@@ -119,7 +126,11 @@ def main():
     )
     parser.add_argument("--predictions", help="Score existing paired JSONL; no GPU required")
     args = parser.parse_args()
-    config = read_config(args.config)
+    if args.limit is not None and args.limit <= 0:
+        parser.error("--limit must be positive")
+    config = (
+        read_config(args.config) if args.predictions else adapter_config(args.adapter, args.config)
+    )
     evaluation = read_jsonl(config["eval_file"])
     assert_disjoint(read_jsonl(config["train_file"]), evaluation)
     if args.limit:
@@ -165,6 +176,13 @@ def main():
         "config": config,
         "adapter_path": args.adapter,
         "eval_sha256": sha256(config["eval_file"]),
+        "adapter_files_sha256": {
+            p.name: sha256(p) for p in sorted(Path(args.adapter).glob("adapter*")) if p.is_file()
+        },
+        "scorer_sha256": {
+            str(p): sha256(p)
+            for p in (Path(__file__), Path("src/schema.py"), Path("src/prompt.py"))
+        },
         "smoke_only": bool(args.limit),
         "metrics": metrics,
         "gates": decide(**metrics),

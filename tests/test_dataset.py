@@ -76,6 +76,8 @@ def test_grounding_regression_blocks_acceptance():
         "grounding_fail": 0.02,
         "recoverable_known_acc": 0.5,
         "recoverable_distribution": {"Yes": 2, "No": 2},
+        "recoverable_gold_distribution": {"Yes": 2, "No": 2},
+        "recoverable_known_distribution": {"Yes": 2, "No": 2},
     }
     adapter = dict(
         base, factor_acc=0.8, phase_acc=0.8, grounding_fail=0.03, recoverable_known_acc=0.8
@@ -101,3 +103,25 @@ def test_adapter_configuration_cannot_silently_change_base(tmp_path):
     )
     with pytest.raises(ValueError, match="model_id"):
         adapter_config(tmp_path, path)
+
+
+def test_recovery_cannot_hide_binary_collapse_behind_unknown_predictions():
+    base = {
+        "valid_schema": 1.0,
+        "factor_acc": 0.5,
+        "phase_acc": 0.5,
+        "grounding_fail": 0.05,
+        "recoverable_known_acc": 0.5,
+        "recoverable_distribution": {"Yes": 10, "No": 10, "Unknown": 80},
+        "recoverable_gold_distribution": {"Yes": 10, "No": 10},
+        "recoverable_known_distribution": {"Yes": 10, "No": 10},
+    }
+    adapter = dict(
+        base,
+        factor_acc=0.8,
+        phase_acc=0.8,
+        recoverable_known_acc=0.7,
+        recoverable_distribution={"Yes": 20, "Unknown": 80},
+        recoverable_known_distribution={"Yes": 20},
+    )
+    assert not decide(base, adapter)["checks"]["recoverable_not_collapsed"]

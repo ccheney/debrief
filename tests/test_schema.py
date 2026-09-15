@@ -211,3 +211,9 @@ def test_controller_reporting_pilot_mistake_keeps_human_label():
         )
         == "Human"
     )
+
+
+def test_unknown_heading_cannot_hide_inside_an_expected_section():
+    text = Brief("We stopped.\nUnrequested heading:\nA second statement.").render()
+    with pytest.raises(ValueError):
+        parse_brief(text)

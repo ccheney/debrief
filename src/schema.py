@@ -153,6 +153,9 @@ def sentences(text):
 def parse_brief(text):
     """Strict validation: no prose wrappers, repeats, extra fields or repairs."""
     text = text.strip()
+    heading_lines = re.findall(r"^([A-Za-z][A-Za-z -]*):[ \t]*$", text, re.M)
+    if heading_lines != list(HEADINGS):
+        raise ValueError("Unexpected, duplicated, or missing section heading")
     pattern = re.compile(r"^(" + "|".join(re.escape(h) for h in HEADINGS) + r"):[ \t]*\n", re.M)
     matches = list(pattern.finditer(text))
     if [m.group(1) for m in matches] != list(HEADINGS) or not matches or matches[0].start() != 0:

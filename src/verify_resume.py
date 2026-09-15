@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -13,6 +14,8 @@ def main():
     parser.add_argument("--config", default=DEFAULT_CONFIG)
     parser.add_argument("--run-id", default="debrief-qwen3-8b-resume-check")
     args = parser.parse_args()
+    if not re.fullmatch(r"[a-z0-9][a-z0-9-]*", args.run_id):
+        parser.error("--run-id must contain lowercase letters, numbers, and hyphens")
     checkpoint_dir = Path("checkpoints") / args.run_id
     adapter_dir = Path("adapters") / args.run_id
     if checkpoint_dir.exists() or adapter_dir.exists():

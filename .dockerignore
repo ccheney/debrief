@@ -5,3 +5,9 @@ adapters
 checkpoints
 eval_runs
 logs
+
+.cache
+unsloth_compiled_cache
+.pytest_cache
+.ruff_cache
+.env

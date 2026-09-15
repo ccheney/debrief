@@ -48,6 +48,7 @@ COLUMNS = {
     "anomalies": "Events_Anomaly",
     "result": "Events.5_Result",
     "related_id": "Person 2.10_ASRS Report Number.Accession Number",
+    "reporter_function": "Person 1.3_Function",
 }
 PHASE_MAP = {
     "Parked": "Parked / ramp",
@@ -91,6 +92,11 @@ FACTOR_MAP = {
     "ATC": "ATC",
     "": "Unknown",
 }
+ATC_FUNCTION_MAP = {
+    code: "ATC"
+    for code in ("Enroute", "Approach", "Departure", "Local", "Ground", "Supervisor / CIC")
+}
+
 # A human-factors primary code may describe controllers or pilots. Override only
 # with explicit narrator attribution, never just the presence of an ATC anomaly.
 ATC_TRIGGER = re.compile(
@@ -140,6 +146,7 @@ class Brief:
 
 
 def sentences(text):
+    text = re.sub(r"(?<=[a-z])\.(?=[A-Z][a-z])", ". ", text)
     return [s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[A-Z\[\"'])|\n+", text) if s.strip()]
 
 
@@ -199,23 +206,40 @@ def map_phase(value):
     return PHASE_MAP.get(codes[0], "Other") if codes else "Unknown"
 
 
-def map_factor(value, narrative=""):
+def map_factor(value, narrative="", reporter_function=""):
     mapped = FACTOR_MAP.get(str(value or "").strip(), "Unknown")
-    return "ATC" if mapped == "Human" and ATC_TRIGGER.search(narrative) else mapped
+    controller = any(code in ATC_FUNCTION_MAP for code in split_codes(reporter_function))
+    own_error = re.search(
+        r"\b(?:I|we) (?:had )?(?:(?:inadvertently|mistakenly|incorrectly|erroneously) (?:cleared|issued|assigned|instructed)"
+        r"|(?:forgot|failed) to|misunderstood|missed|assumed|issued (?:a |the )?(?:late|wrong|incorrect))\b",
+        narrative,
+        re.I,
+    )
+    return (
+        "ATC"
+        if mapped == "Human" and (ATC_TRIGGER.search(narrative) or (controller and own_error))
+        else mapped
+    )
 
 
 NEGATION = re.compile(
-    r"\b(?:no|not|never|without|avoided|prevented|potential|possible|nearly|almost|risk of|could have|would have|didn't|did not)\b",
+    r"\b(?:no|not|never|without|avoid|avoided|prevented|potential|possible|near|nearly|almost|risk of|could have|would have|didn't|did not)\b",
     re.I,
 )
 COMPLETED = re.compile(
-    r"\b(?:collided|collision|struck (?:the |a )?(?:ground|terrain|aircraft|vehicle)|hit (?:the |a )?(?:ground|terrain|aircraft|vehicle)|crashed|hull loss|off[- ]airport landing|ground contact)\b",
+    r"\b(?:collided|collision (?:occurred|with)|landing gear collapsed|struck (?:the |a )?(?:ground|terrain|aircraft|vehicle)|hit (?:the |a )?(?:ground|terrain|aircraft|vehicle)|crashed|hull loss|off[- ]airport landing|ground contact)\b",
     re.I,
 )
 SUCCESS = re.compile(
-    r"\b(?:we (?:stopped|queried ATC|went around)|(?:executed|performed|initiated) (?:a )?go[- ]around|rejected (?:the )?takeoff|aborted (?:the )?takeoff|followed (?:the )?(?:TCAS )?RA|took evasive action|avoided (?:a |the )?collision|collision was avoided)\b",
+    r"\b(?:we (?:(?:then|immediately|successfully|safely|quickly|eventually) )?(?:stopped|queried ATC|went around)"
+    r"|(?:executed|performed|initiated|completed) (?:a |the )?(?:go[- ]around|missed approach)"
+    r"|(?:rejected|aborted) (?:the )?takeoff|followed (?:the )?(?:TCAS )?RA"
+    r"|took evasive action|avoided (?:a |the )?collision|collision was avoided"
+    r"|corrected (?:the |our |my |this )?(?:error|deviation|altitude)"
+    r"|(?:regained|restored|reestablished) (?:aircraft |positive |radio )?(?:control|separation|communication))\b",
     re.I,
 )
+
 NEAR_MISS = re.compile(
     r"\b(?:near[- ]miss|near mid[- ]air|NMAC|almost (?:hit|collided)|nearly (?:hit|collided)|(?:avoided|prevented) (?:a |the )?collision|potential (?:ground |midair |mid-air )?collision|could have (?:hit|collided))\b",
     re.I,
@@ -286,20 +310,80 @@ def words(text):
     return {w for w in re.findall(r"[a-z]{3,}", text.lower()) if w not in stop}
 
 
+# Only recognized aircraft-family tokens can be generalized. Never erase an
+# arbitrary unknown airport, number or callsign to make a target appear grounded.
+AIRCRAFT_TYPE = re.compile(
+    r"\b(?:B\d{3}(?:-\d+[A-Z]*)?|A\d{3}(?:-\d+)?|MD-?\d+|CRJ-?\d+|ERJ-?\d+|EMB-?\d+|C[AE]?\d{3}|BE-?\d+|PA-?\d+)\b"
+)
+EVENT_WORDS = re.compile(
+    r"\b(?:fail\w*|lost|loss|error|incorrect|wrong|warn\w*|smoke|fire|struck|hit|collid\w*|collision|separat\w*|departed|uncommanded|roll\w*|dislodged|inoperative|shut|shutdown|deviation|miss\w*|conflict|turbulence|injur\w*|damag\w*|incursion|billowing|hurt|blood|brak\w*)\b",
+    re.I,
+)
+HYPOTHETICAL = re.compile(
+    r"\b(?:would have|could have|if we|if I|should have|my question|I wonder|hopefully|will have|should|recommend)\b",
+    re.I,
+)
+
+
+def supported_synopsis(synopsis, narrative):
+    def generalize(match):
+        token = match.group(0)
+        if re.search(r"\b" + re.escape(token) + r"\b", narrative, re.I):
+            return token
+        return "aircraft"
+
+    # Preserve uncertainty: do not supervise a confident synopsis from a narrator
+    # who explicitly says they cannot establish what happened.
+    if re.search(r"\b(?:unsure|not sure|can.t be .*?sure|cannot be .*?sure)\b", narrative, re.I):
+        return []
+    for phrase in ("high altitude airport", "low altitude airport"):
+        if phrase in synopsis.lower() and phrase not in narrative.lower():
+            return []
+    for role in ("Captain", "First Officer"):
+        if not re.search(r"\b" + role + r"\b", narrative, re.I):
+            synopsis = re.sub(r"\b" + role + r"\b", "reporter", synopsis, flags=re.I)
+    synopsis = AIRCRAFT_TYPE.sub(generalize, synopsis)
+    for qualifier in ("Light", "Aerobatic", "Corporate", "Business", "Small", "Large", "Heavy"):
+        if qualifier.lower() not in words(narrative):
+            synopsis = re.sub(r"\b" + qualifier + r"(?= aircraft\b)", "", synopsis, flags=re.I)
+    synopsis = re.sub(r" +", " ", synopsis).strip()
+    synopsis = re.sub(r"\ba aircraft\b", "an aircraft", synopsis, flags=re.I)
+    synopsis = re.sub(r"\b(?:an? )?aircraft flight crew\b", "The flight crew", synopsis, flags=re.I)
+    synopsis = re.sub(r"\baircraft aircraft\b", "aircraft", synopsis, flags=re.I)
+    synopsis = re.sub(r"\b(?:an? )?aircraft (captain|reporter)\b", r"The \1", synopsis, flags=re.I)
+    selected = []
+    source = words(narrative)
+    for index, sentence in enumerate(sentences(synopsis)):
+        content = words(sentence)
+        overlap = len(content & source) / max(1, len(content))
+        if (
+            not any(grounding_flags(narrative, sentence).values())
+            and overlap >= 0.50
+            and EVENT_WORDS.search(sentence)
+            and not HYPOTHETICAL.search(sentence)
+            and not sentence.endswith("?")
+            and len(sentence.split()) <= 65
+        ):
+            selected.append(sentence[0].upper() + sentence[1:])
+        elif index == 0:
+            return []  # a later sentence must not replace the central incident
+    return selected[:2]
+
+
 def compose_gold(row, narrative):
-    """Synopsis-guided extractive targets: every free-text claim has input evidence."""
+    """Source-checked deterministic synopsis; reject unsupported prose targets."""
     synopsis = str(row.get(COLUMNS["synopsis"], "") or "")
     parts = sentences(narrative)
-    summary_words = words(synopsis)
-    ranked = sorted(enumerate(parts), key=lambda p: (-len(words(p[1]) & summary_words), p[0]))
-    # Prefer short complete evidence. Never cut a sentence into a new claim.
-    candidates = [(i, s) for i, s in ranked if 6 <= len(s.split()) <= 65 and len(s) < 460]
-    if not candidates:
+    summary = supported_synopsis(synopsis, narrative)
+    if not summary:
         return None
-    selected = sorted(candidates[:2])
-    happened = " ".join(s for _, s in selected)
+    happened = " ".join(summary)
     almost = next(
-        (s for s in parts if NEAR_MISS.search(s) and s not in happened and len(s.split()) <= 60),
+        (
+            sentence
+            for sentence in parts
+            if NEAR_MISS.search(sentence) and sentence != happened and len(sentence.split()) <= 60
+        ),
         "None stated",
     )
     recoverable, evidence = derive_recoverable(narrative)
@@ -318,8 +402,13 @@ def compose_gold(row, narrative):
         (
             s
             for s in reversed(parts)
-            if re.search(r"\b(?:should|need to|lesson|recommend)\b", s, re.I)
+            if re.search(
+                r"^(?:(?:We|Pilots|Crews|Controllers|Operators|Maintenance|The crew|Our crew|Flight crews|You) (?:should|need to|must)|I (?:recommend|suggest)|The lesson)",
+                s,
+                re.I,
+            )
             and len(s.split()) <= 35
+            and not re.match(r"(?:If so|This|That|It|He|She|They)\b", s, re.I)
             and s.endswith(".")
         ),
         "None stated.",
@@ -328,7 +417,7 @@ def compose_gold(row, narrative):
         happened,
         almost,
         map_phase(row.get(COLUMNS["phase"])),
-        map_factor(row.get(COLUMNS["factor"]), narrative),
+        map_factor(row.get(COLUMNS["factor"]), narrative, row.get(COLUMNS["reporter_function"])),
         contributors[:5],
         recoverable,
         evidence if len(evidence.split()) <= 40 and evidence not in happened else "",
@@ -347,9 +436,10 @@ def label_map():
         "phases": PHASE_MAP,
         "factors": FACTOR_MAP,
         "contributor_evidence": CONTRIBUTOR_EVIDENCE,
-        "version": 1,
+        "version": 3,
         "multi_phase_policy": "first source code (not chronological)",
         "atc_override": ATC_TRIGGER.pattern,
+        "atc_function_map": ATC_FUNCTION_MAP,
         "recoverable_completed": COMPLETED.pattern,
         "recoverable_success": SUCCESS.pattern,
         "negation": NEGATION.pattern,

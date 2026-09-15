@@ -1,7 +1,7 @@
 name: debrief-studio
 services:
   unsloth:
-    image: ${UNSLOTH_IMAGE:-unsloth/unsloth:latest}
+    image: unsloth/unsloth@sha256:3b88aa35b378e83db3f567cfb668931695f7bac951dcef37fa6a1f5e2e96fae1
     container_name: unsloth-studio
     restart: unless-stopped
     init: true
@@ -12,7 +12,7 @@ services:
       HF_HOME: /workspace/.cache/huggingface
       UNSLOTH_SKIP_NOTEBOOK_SYNC: "1"
     volumes:
-      - unsloth-state:/root/.unsloth
+      - studio-home:/opt/unsloth-studio
       - unsloth-workspace:/workspace
       - /home/ccheney/briefcard:/workspace/debrief
     networks: [coolify]
@@ -30,7 +30,9 @@ services:
       start_period: 180s
       retries: 5
 volumes:
-  unsloth-state:
+  studio-home:
+    external: true
+    name: debrief-studio_studio-home
   unsloth-workspace:
 networks:
   coolify:

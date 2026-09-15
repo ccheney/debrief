@@ -81,3 +81,23 @@ def test_grounding_regression_blocks_acceptance():
         base, factor_acc=0.8, phase_acc=0.8, grounding_fail=0.03, recoverable_known_acc=0.8
     )
     assert decide(base, adapter)["decision"].startswith("STOP")
+
+
+def test_adapter_configuration_cannot_silently_change_base(tmp_path):
+    import json
+    from src.common import adapter_config
+
+    config = {
+        "model_id": "base-one",
+        "model_revision": "frozen",
+        "narrative_tokens": 1200,
+        "max_seq_length": 2048,
+    }
+    (tmp_path / "debrief_config.json").write_text(json.dumps(config))
+    assert adapter_config(tmp_path) == config
+    path = tmp_path / "other.yaml"
+    path.write_text(
+        "model_id: another-base\nmodel_revision: frozen\nnarrative_tokens: 1200\nmax_seq_length: 2048\n"
+    )
+    with pytest.raises(ValueError, match="model_id"):
+        adapter_config(tmp_path, path)

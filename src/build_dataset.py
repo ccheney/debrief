@@ -9,6 +9,7 @@ import re
 
 from src.common import DEFAULT_CONFIG, read_config, read_jsonl, sha256, write_json, write_jsonl
 from src.prompt import messages_for
+from src.schema import supported_synopsis
 from src.schema import COLUMNS, SYSTEM_PROMPT, compose_gold, grounding_flags, label_map
 
 
@@ -100,11 +101,14 @@ def build(rows, tokenizer, config):
         if not raw.get(COLUMNS["synopsis"]) and not raw.get(COLUMNS["factor"]):
             counts["drop_no_supervision"] += 1
             continue
+        if not supported_synopsis(str(raw.get(COLUMNS["synopsis"], "") or ""), original):
+            counts["drop_unsupported_synopsis"] += 1
+            continue
         narrative, truncated = truncate_narrative(original, tokenizer, config["narrative_tokens"])
         counts["truncated"] += int(truncated)
         brief = compose_gold(raw, narrative)
         if brief is None:
-            counts["drop_no_complete_evidence"] += 1
+            counts["drop_unsupported_synopsis"] += 1
             continue
         gold = brief.render()
         flags = grounding_flags(narrative, gold)
@@ -187,7 +191,7 @@ def main():
         "eval_sha256": sha256(out / "eval.jsonl"),
         "label_map_sha256": sha256(out / "label_map.json"),
         "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
-        "gold_method": "synopsis-guided extractive narrative sentences; coded class labels; no teacher model",
+        "gold_method": "source-checked synopsis; absent aircraft types generalized; coded class labels; no teacher model",
     }
     write_json(out / "manifest.json", manifest)
     for split_name, split in (("train", train), ("eval", evaluation)):
@@ -200,7 +204,7 @@ def main():
     report = "# Dataset build\n\n" + "\n".join(f"- {k}: {v}" for k, v in counts.items())
     report += f"\n\nSource: `{config['dataset_id']}@{info.sha}`\nLicense in source card: `{card['license']}`\n\n"
     report += "Split groups combine report IDs, linked accession IDs and duplicate narratives. Reserve contains IDs only. "
-    report += "Gold prose is extractive; phase/factor labels and recoverability are noisy proxies. Human review is pending.\n"
+    report += "Gold prose is source-checked synopsis; phase/factor labels and recoverability are noisy proxies. Human review is pending.\n"
     (out / "build_report.md").write_text(report)
     print(report)
 

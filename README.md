@@ -26,8 +26,7 @@ macOS. Model training and inference require NVIDIA CUDA on Cathedral.
 scripts/cathedral.sh sync
 scripts/cathedral.sh build
 scripts/cathedral.sh run python -m src.train_unsloth --dry-run
-scripts/cathedral.sh run python -m src.train_unsloth
-scripts/cathedral.sh run python -m src.eval_briefs
+scripts/cathedral.sh run python -m src.run_experiment
 scripts/cathedral.sh run python -m src.infer \
   --adapter adapters/debrief-qwen3-8b-asrs-v01 --file fixtures/dark_tug.txt
 ```
@@ -65,6 +64,10 @@ Generated files in `data/processed/`:
 - `label_map.json`, `column_inventory.json`: explicit codes and observed source columns.
 - `manifest.json`, `build_report.md`: hashes, revisions, license and drop counts.
 - `review_train.md`, `review_eval.md`: reproducible 50-row review samples each.
+
+The full trainer requires `review_decision.json` with a 100-row review bound to
+the train/eval file hashes. See [the agent review](docs/gold-review.md); the
+strict human-review milestone remains outstanding.
 
 Only a ten-row sample may be committed. Raw data, full splits, checkpoints and
 weights are ignored by git. No synopsis is used as an inference input and no
@@ -116,6 +119,7 @@ The GPU-backed UI is deployed separately via `deploy/unsloth.compose.yaml` at
 existing Cathedral wildcard DNS and Coolify Traefik proxy. Studio state persists
 in Docker volumes. The source and adapters are visible at `/workspace/debrief`.
 The CLI environment remains separately pinned for reproducible experiments.
+See [Studio operations](docs/cathedral-studio.md).
 
 ## Scope and limitations
 

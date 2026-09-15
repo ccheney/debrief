@@ -10,7 +10,7 @@ import time
 
 from src.common import DEFAULT_CONFIG, read_config, read_jsonl, sha256, write_json
 from src.schema import SYSTEM_PROMPT, parse_brief
-from src.prompt import messages_for
+from src.prompt import FORMAT, messages_for
 
 
 def gpu_preflight():
@@ -70,6 +70,22 @@ def main():
         raise ValueError(
             f"Adapter output exists: {adapter_dir}. Choose a new directory or --resume."
         )
+    if not args.dry_run:
+        review_path = Path(config["train_file"]).parent / "review_decision.json"
+        if not review_path.exists():
+            raise ValueError(
+                "Review 50 train + 50 eval gold rows and record review_decision.json before the full run"
+            )
+        review = json.loads(review_path.read_text())
+        if (
+            not review.get("approved_for_experiment")
+            or review.get("n_reviewed") != 100
+            or review.get("train_sha256") != sha256(config["train_file"])
+            or review.get("eval_sha256") != sha256(config["eval_file"])
+        ):
+            raise ValueError(
+                "Gold review is missing, incomplete, or belongs to a different dataset"
+            )
     rows = read_jsonl(config["train_file"])
     validate_training_rows(rows)
     if args.dry_run:
@@ -97,9 +113,19 @@ def main():
         "eval_loss_source": "32 training rows (monitor only)",
         "train_sha256": sha256(config["train_file"]),
         "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
+        "schema_prompt_sha256": hashlib.sha256(FORMAT.encode()).hexdigest(),
         "git_commit": subprocess.run(
             ["git", "rev-parse", "HEAD"], capture_output=True, text=True
         ).stdout.strip(),
+        "code_sha256": {str(p): sha256(p) for p in sorted(Path("src").glob("*.py"))},
+        "git_dirty": bool(
+            subprocess.run(
+                ["git", "status", "--porcelain"], capture_output=True, text=True
+            ).stdout.strip()
+        ),
+        "model_id": config["model_id"],
+        "model_revision": config["model_revision"],
+        "dataset_revision": config["dataset_revision"],
         "gpu": torch.cuda.get_device_name(),
         "gpu_total_bytes": torch.cuda.get_device_properties(0).total_memory,
         "torch": torch.__version__,
@@ -246,6 +272,17 @@ def main():
             peak_vram_reserved_bytes=torch.cuda.max_memory_reserved(),
         )
         write_json(meta_path, metadata)
+        if metadata["status"] == "complete":
+            write_json(adapter_dir / "train_meta.json", metadata)
+            card = Path("MODEL_CARD.md").read_text()
+            card = card.replace("debrief-qwen3-8b-asrs-v01", adapter_dir.name)
+            card = card.replace(
+                "**Status: pipeline implemented; training and acceptance evaluation pending.**",
+                "**Status: smoke adapter only; not accepted for use.**"
+                if args.dry_run
+                else "**Status: training completed; held-out acceptance evaluation pending.**",
+            )
+            (adapter_dir / "README.md").write_text(card)
 
 
 if __name__ == "__main__":

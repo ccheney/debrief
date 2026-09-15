@@ -5,13 +5,15 @@ import contextlib
 import json
 from pathlib import Path
 import sys
-from src.common import DEFAULT_CONFIG, read_config, read_jsonl
+from src.common import DEFAULT_CONFIG, adapter_config, read_config, read_jsonl
 from src.schema import parse_brief
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default=DEFAULT_CONFIG)
+    parser.add_argument(
+        "--config", help="Default: saved adapter configuration, or project config for --base"
+    )
     parser.add_argument("--adapter", default="adapters/debrief-qwen3-8b-asrs-v01")
     parser.add_argument("--base", action="store_true", help="Run the untuned baseline")
     source = parser.add_mutually_exclusive_group(required=True)
@@ -43,7 +45,12 @@ def main():
     with contextlib.redirect_stdout(sys.stderr):
         from src.runtime import Generator
 
-        generator = Generator(read_config(args.config), None if args.base else args.adapter)
+        config = (
+            read_config(args.config or DEFAULT_CONFIG)
+            if args.base
+            else adapter_config(args.adapter, args.config)
+        )
+        generator = Generator(config, None if args.base else args.adapter)
     invalid = False
     for i, row in enumerate(rows):
         with contextlib.redirect_stdout(sys.stderr):

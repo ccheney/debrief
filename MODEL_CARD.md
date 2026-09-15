@@ -36,10 +36,12 @@ identical for base, adapter, training and inference.
 
 ## Supervision and limitations
 
-Gold prose uses narrative sentences selected by overlap with the analyst synopsis.
-It does not copy synopsis-only aircraft types, numbers or locations. This is
-extractive weak supervision, not expert causal labeling. It can be verbose or
-select an event without enough surrounding context.
+Gold prose uses the first source-checked synopsis sentences. Unsupported known
+aircraft types are generalized to aircraft; unsupported role titles to reporter.
+A target is rejected for ungrounded numbers/acronyms, less than 50% content-word
+overlap, explicit narrator uncertainty, or unsupported airport elevation claims.
+The first synopsis sentence must pass; a later sentence cannot replace the main
+event. These checks provide weak supervision, not proof of semantic grounding.
 
 Phase and factor classes are mapped from analyst codes. Multiple phases use the
 first listed source code, which is not necessarily chronological. `ATC Equipment`

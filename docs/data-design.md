@@ -8,10 +8,15 @@ The original synopsis can include facts absent from `Report 1_Narrative`. For
 example, report 1574675's synopsis names a B737-700 even though its narrative does
 not. Copying that synopsis would train the model to invent an aircraft type.
 
-The mapper therefore ranks complete narrative sentences by synopsis word overlap
-and selects up to two in original order. This trades polished compression for
-traceable evidence. Contributors require both a source code and an attested
-phrase. Recommendations are copied from a short narrator recommendation, or set
+The mapper uses up to two synopsis sentences only when the first sentence passes
+source checks. It generalizes unsupported known aircraft types and role titles,
+rejects new numbers/acronyms and explicit uncertainty, and requires at least 50%
+content-word overlap. A later sentence cannot replace a rejected central event.
+The earlier extractive fallback was removed after review found it selected
+setup details and hypotheticals. This retains analyst compression but filters
+aggressively; the checks remain weak supervision and require review. Contributors require both a source code and an attested
+phrase. Recommendations are copied only from short explicit recommendations beginning
+with a speaker and should/need to/must, or set
 to `None stated.` Near misses require explicit counterfactual wording; absent
 counterfactuals stay `None stated`.
 
@@ -38,3 +43,7 @@ never substituted for the held-out base-vs-adapter benchmark.
 Review packets are generated separately. Automated lexical checks and an agent's
 review are not represented as a human review. Acceptance notes must name the
 reviewer and explicitly retain this distinction.
+
+Human Factors reports map to ATC only for explicit controller attribution, or a known controller function together with explicit first-person error wording. A controller merely reporting a pilot error stays Human.
+
+The frozen 100-row agent review is in [gold-review.md](gold-review.md). It is not a human sign-off. The trainer checks its dataset hashes before a full run.

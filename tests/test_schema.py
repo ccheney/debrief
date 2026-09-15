@@ -128,8 +128,7 @@ def test_synopsis_specifics_never_enter_gold():
         COLUMNS["factor"]: "Human Factors",
     }
     brief = compose_gold(row, narrative)
-    assert brief and "B737" not in brief.render() and "5000" not in brief.render()
-    assert not any(grounding_flags(narrative, brief.render()).values())
+    assert brief is None  # unsupported airport/altitude cannot be laundered into gold
 
 
 def test_all_factor_labels_controlled():
@@ -151,3 +150,64 @@ def test_all_fixture_gold_cards_parse():
     assert len(paths) == 10
     for path in paths:
         parse_brief(path.read_text())
+
+
+def test_unsupported_aircraft_model_generalized_only_when_rest_is_grounded():
+    narrative = "The engine failed during cruise and we returned for a safe landing."
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "B737 flight crew reported an engine failure during cruise and returned for a safe landing."
+    }
+    brief = compose_gold(row, narrative)
+    assert brief and "B737" not in brief.what_happened
+    assert "returned" in brief.what_happened
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        ("We then stopped before entering the runway.", "Yes"),
+        ("We corrected the deviation and continued.", "Yes"),
+        ("We did not execute a missed approach.", "Unknown"),
+        ("We discussed the possibility of a TCAS RA.", "Unknown"),
+        ("We restored positive separation.", "Yes"),
+    ],
+)
+def test_recovery_intervention_variants(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "label"),
+    [
+        ("The tractor was on a collision course with the aircraft.", "Unknown"),
+        ("I was able to avoid a collision using heavy braking.", "Unknown"),
+        ("The landing gear collapsed during the landing roll.", "No"),
+    ],
+)
+def test_completed_event_not_collision_risk(text, label):
+    assert derive_recoverable(text)[0] == label
+
+
+def test_controller_human_factors_map_to_atc_not_pilot_error():
+    assert map_factor("Human Factors", "I issued a late turn.", "Enroute") == "ATC"
+    assert (
+        map_factor("Human Factors", "I read back the clearance incorrectly.", "First Officer")
+        == "Human"
+    )
+    assert (
+        map_factor("ATC Equipment / Nav Facility / Buildings", "The radio failed.", "Ground")
+        == "Equipment"
+    )
+
+
+def test_controller_reporting_pilot_mistake_keeps_human_label():
+    assert (
+        map_factor(
+            "Human Factors",
+            "The pilot took the wrong runway. I immediately cancelled their takeoff clearance.",
+            "Local",
+        )
+        == "Human"
+    )

@@ -2,12 +2,27 @@
 
 import contextlib
 import random
+import json
+import hashlib
+from pathlib import Path
 from src.build_dataset import truncate_narrative
-from src.prompt import messages_for
+from src.prompt import FORMAT, messages_for
+from src.schema import SYSTEM_PROMPT
 
 
 class Generator:
     def __init__(self, config, adapter=None):
+        if adapter and (Path(adapter) / "train_meta.json").exists():
+            metadata = json.loads((Path(adapter) / "train_meta.json").read_text())
+            for field, value in (
+                ("system_prompt_sha256", SYSTEM_PROMPT),
+                ("schema_prompt_sha256", FORMAT),
+            ):
+                if (
+                    field in metadata
+                    and metadata[field] != hashlib.sha256(value.encode()).hexdigest()
+                ):
+                    raise ValueError("Prompt differs from the one used to train this adapter")
         # Unsloth must patch transformers before it is imported.
         from unsloth import FastLanguageModel
         import torch

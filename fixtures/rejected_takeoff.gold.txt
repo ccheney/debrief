@@ -1,0 +1,20 @@
+What happened:
+An engine warning appeared during takeoff. We rejected the takeoff and stopped; maintenance found a sensor fault.
+
+What almost happened:
+None stated
+
+Phase of flight:
+Takeoff
+
+Primary factor:
+Equipment
+
+Contributing factors:
+None stated
+
+Recoverable:
+Yes
+
+Lesson:
+The engine warning prompted a rejected takeoff.

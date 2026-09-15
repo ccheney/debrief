@@ -1,0 +1,1 @@
+While taxiing, the controller issued an incorrect clearance onto an occupied runway. We queried ATC before entering. The controller corrected the clearance and we remained clear of the runway.

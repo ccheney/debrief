@@ -1,0 +1,20 @@
+What happened:
+The controller issued an incorrect clearance onto an occupied runway. We queried ATC before entering and received a corrected clearance.
+
+What almost happened:
+None stated
+
+Phase of flight:
+Taxi
+
+Primary factor:
+ATC
+
+Contributing factors:
+None stated
+
+Recoverable:
+Yes
+
+Lesson:
+Querying the unclear clearance kept us clear of the occupied runway.

@@ -1,0 +1,22 @@
+What happened:
+We caught up to a dark ERJ-145 on a towbarless tug while taxiing a B757 to the hangar. We stopped before reaching it.
+
+What almost happened:
+A collision with the aircraft in tow.
+
+Phase of flight:
+Taxi
+
+Primary factor:
+Equipment
+
+Contributing factors:
+- No external lighting
+- Tug obscured by the aircraft
+
+Recoverable:
+Yes
+We stopped before reaching it.
+
+Lesson:
+Towed aircraft should be visible to other traffic.

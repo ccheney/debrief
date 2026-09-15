@@ -1,0 +1,20 @@
+What happened:
+The display went blank during cruise. It was not restarted and the later outcome was not recorded.
+
+What almost happened:
+None stated
+
+Phase of flight:
+Cruise
+
+Primary factor:
+Equipment
+
+Contributing factors:
+None stated
+
+Recoverable:
+Unknown
+
+Lesson:
+None stated.

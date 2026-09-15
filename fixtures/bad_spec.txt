@@ -1,0 +1,1 @@
+We built the import job assuming that every record had a unique email. The specification never required uniqueness. Two records shared an email and one was overwritten. We restored the overwritten record from a backup. We should make uniqueness assumptions explicit in the specification.

@@ -1,0 +1,20 @@
+What happened:
+The crosswind increased during final approach and the approach became unstable. We executed a go-around and later landed safely.
+
+What almost happened:
+None stated
+
+Phase of flight:
+Approach
+
+Primary factor:
+Weather
+
+Contributing factors:
+None stated
+
+Recoverable:
+Yes
+
+Lesson:
+We should abandon an unstable approach.

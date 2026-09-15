@@ -1,0 +1,37 @@
+name: debrief-studio
+services:
+  unsloth:
+    image: ${UNSLOTH_IMAGE:-unsloth/unsloth:latest}
+    container_name: unsloth-studio
+    restart: unless-stopped
+    init: true
+    shm_size: 4gb
+    gpus: all
+    command: [unsloth, studio, -H, 0.0.0.0, -p, "8888"]
+    environment:
+      HF_HOME: /workspace/.cache/huggingface
+      UNSLOTH_SKIP_NOTEBOOK_SYNC: "1"
+    volumes:
+      - unsloth-state:/root/.unsloth
+      - unsloth-workspace:/workspace
+      - /home/ccheney/briefcard:/workspace/debrief
+    networks: [coolify]
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: coolify
+      traefik.http.routers.unsloth-studio.rule: Host(`unsloth.cathedral.home.arpa`)
+      traefik.http.routers.unsloth-studio.entrypoints: http
+      traefik.http.routers.unsloth-studio.service: unsloth-studio
+      traefik.http.services.unsloth-studio.loadbalancer.server.port: "8888"
+    healthcheck:
+      test: [CMD, curl, -fsS, http://127.0.0.1:8888/api/health]
+      interval: 30s
+      timeout: 5s
+      start_period: 180s
+      retries: 5
+volumes:
+  unsloth-state:
+  unsloth-workspace:
+networks:
+  coolify:
+    external: true

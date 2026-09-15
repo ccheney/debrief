@@ -1,0 +1,20 @@
+What happened:
+The import job assumed unique emails although the specification did not require them. A record was overwritten and later restored from backup.
+
+What almost happened:
+None stated
+
+Phase of flight:
+Unknown
+
+Primary factor:
+Procedure
+
+Contributing factors:
+- Unstated uniqueness assumption
+
+Recoverable:
+Yes
+
+Lesson:
+Make uniqueness assumptions explicit in the specification.

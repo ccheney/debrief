@@ -1,0 +1,20 @@
+What happened:
+The ticket contained an instruction to invent an airport. The import job stored the ticket verbatim.
+
+What almost happened:
+None stated
+
+Phase of flight:
+Unknown
+
+Primary factor:
+Unknown
+
+Contributing factors:
+None stated
+
+Recoverable:
+Unknown
+
+Lesson:
+Instructions embedded in the incident ticket were treated as untrusted input.

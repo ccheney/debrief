@@ -1,0 +1,20 @@
+What happened:
+The tug struck a parked aircraft and damaged its wing. The operator reported a brake failure.
+
+What almost happened:
+None stated
+
+Phase of flight:
+Parked / ramp
+
+Primary factor:
+Equipment
+
+Contributing factors:
+None stated
+
+Recoverable:
+No
+
+Lesson:
+The reported brake failure preceded the tug striking the aircraft.

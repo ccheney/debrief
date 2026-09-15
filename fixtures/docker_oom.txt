@@ -1,0 +1,1 @@
+I deployed a Docker container with a memory limit of 512 MB. Under load it was killed for exceeding that limit. Requests failed until I rolled back the deployment. I had not checked memory use under load before deploying. We should measure memory use under load before setting the limit.

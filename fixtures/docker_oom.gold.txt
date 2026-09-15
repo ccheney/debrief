@@ -1,0 +1,20 @@
+What happened:
+A Docker container exceeded its 512 MB memory limit and was killed under load. Requests failed until the deployment was rolled back.
+
+What almost happened:
+None stated
+
+Phase of flight:
+Unknown
+
+Primary factor:
+Procedure
+
+Contributing factors:
+- Memory use under load was not checked
+
+Recoverable:
+Yes
+
+Lesson:
+Measure memory use under load before setting the limit.

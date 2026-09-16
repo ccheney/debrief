@@ -112,7 +112,12 @@ def test_invalid_schema(mutator):
 
 def test_grounding():
     flags = grounding_flags("SNA at 1,000 feet.", "SNA at 1000 feet; B737 at 2500 feet near LAX.")
-    assert flags == {"numbers": ["2500"], "acronyms": ["B737", "LAX"], "events": []}
+    assert flags == {
+        "numbers": ["2500"],
+        "acronyms": ["B737", "LAX"],
+        "events": [],
+        "designators": [],
+    }
     assert not any(
         grounding_flags(
             "Tower gave a clearance.",
@@ -655,3 +660,52 @@ def test_near_miss_v03_patterns(sentence, is_near_miss):
     from src.schema import NEAR_MISS, unnegated_match
 
     assert bool(unnegated_match(NEAR_MISS, sentence)) is is_near_miss
+
+
+def test_third_person_role_detected_without_an_article():
+    from src.schema import supported_synopsis
+
+    third = (
+        "Captain (Pilot Flying) turned off the autopilot; Captain feels the issue was due to him being new. "
+        "We had an altitude deviation after multiple confusing clearances from ATC."
+    )
+    first = "As Captain I turned off the autopilot. We had an altitude deviation after multiple confusing clearances from ATC."
+    syn = "Captain reported an altitude deviation after multiple confusing clearances from ATC."
+    assert supported_synopsis(syn, third)[0].startswith("Reporter reported")
+    assert supported_synopsis(syn, first)[0].startswith("Captain reported")
+
+
+def test_event_word_only_ever_hedged_is_not_asserted():
+    from src.schema import supported_synopsis
+
+    hedged = "The engine cowling separated during the climb. The horizontal stabilizer had likely been struck at the time."
+    plain = "The engine cowling separated during the climb and struck the horizontal stabilizer."
+    syn = "The engine cowling separated and struck the horizontal stabilizer during the climb."
+    assert supported_synopsis(syn, hedged) == []
+    assert supported_synopsis(syn, plain)
+
+
+def test_named_designator_must_appear_in_the_narrative():
+    narrative = "We were passing intersection A5 on the runway when the conflict occurred."
+    assert grounding_flags(narrative, "The crew reported a conflict from Taxiway D to Taxiway A5.")[
+        "designators"
+    ] == ["Taxiway D"]
+    assert not grounding_flags(
+        "We turned onto Taxiway D from Runway 26R.",
+        "The crew turned onto Taxiway D from Runway 26R.",
+    )["designators"]
+    assert not grounding_flags(
+        "We were cleared to land on Runway XXR and exited at 1.",
+        "The crew landed on Runway XXR and exited at Taxiway 1.",
+    )["designators"]
+
+
+def test_analyst_size_descriptor_is_generalized():
+    from src.schema import supported_synopsis
+
+    narrative = "We found the forward and aft crew oxygen compartments sealed and there was a conflict over the compartments."
+    out = supported_synopsis(
+        "Flight crew reported a conflict over sealed crew oxygen compartments on their large transport aircraft.",
+        narrative,
+    )
+    assert out and "large transport" not in out[0]

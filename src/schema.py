@@ -492,6 +492,9 @@ EVENT_CLAIMS = (
     ("wind shear", r"\bwind ?shear\b", r"shear|microburst|gust"),
     ("turbulence", r"\bturbulence\b", r"turbulen|chop|bump|rough air|jolt"),
 )
+DESIGNATOR = re.compile(
+    r"\b(Taxiway|Runway|Gate|Ramp|Spot|Pad|Intersection)\s+([A-Z0-9][A-Z0-9-]{0,4})\b"
+)
 EVENT_CLAIMS = tuple(
     (name, re.compile(claim, re.I), re.compile(evidence, re.I))
     for name, claim, evidence in EVENT_CLAIMS
@@ -517,10 +520,22 @@ def grounding_flags(narrative, output):
         for name, claim, evidence in EVENT_CLAIMS
         if claim.search(output) and not evidence.search(narrative)
     ]
+    # A named taxiway, runway or gate is a location; single letters slip past the
+    # acronym check, so the designator token itself must appear in the narrative.
+    designators = sorted(
+        {
+            f"{match.group(1)} {match.group(2)}"
+            for match in DESIGNATOR.finditer(output)
+            if not re.search(
+                r"(?<![A-Za-z0-9])" + re.escape(match.group(2)) + r"(?![A-Za-z0-9])", narrative
+            )
+        }
+    )
     return {
         "numbers": invented_numbers,
         "acronyms": sorted(acronyms - source_words),
         "events": events,
+        "designators": designators,
     }
 
 
@@ -576,7 +591,8 @@ QUALIFIERS = (
     r"Light|Aerobatic|Corporate|Business|Small|Large|Heavy|Narrow[- ]body|Wide[- ]body|Vintage|Military"
     r"|Regional|Single[- ]engine|Twin[- ]engine|Multi[- ]engine|Turboprop|Piston|Commuter|Cargo|Experimental"
     r"|Homebuilt|Amateur[- ]built|Ultralight|Tailwheel|High[- ]performance|Antique|Warbird|Jet|Air taxi"
-    r"|Fractional|Charter|Air carrier"
+    r"|Fractional|Charter|Air carrier|Transport|Widebody|Business jet|Medevac|Air ambulance"
+    r"|Light transport|Small transport|Medium transport|Large transport|Corporate jet|Private"
 )
 # Facility or organization words an analyst puts in front of a role. When the role
 # itself is unsupported the modifier goes with it, so a card never reads
@@ -630,10 +646,11 @@ def supported_synopsis(synopsis, narrative):
         return []
     # Content words of every hedged narrative sentence; a synopsis cause that
     # overlaps them is the analyst promoting a guess to a fact.
-    hedge_words = set()
+    hedge_words, plain_words = set(), set()
     for candidate in sentences(narrative):
-        if HEDGE.search(candidate):
-            hedge_words |= words(candidate)
+        (hedge_words if HEDGE.search(candidate) else plain_words).__ior__(words(candidate))
+    # Event words the narrative states only inside a hedged sentence stay hedged.
+    hedged_only = {w for w in hedge_words - plain_words if EVENT_WORDS.fullmatch(w)}
     for phrase in ("high altitude airport", "low altitude airport"):
         if phrase in synopsis.lower() and phrase not in narrative.lower():
             return []
@@ -645,7 +662,14 @@ def supported_synopsis(synopsis, narrative):
                 synopsis,
                 flags=re.I,
             )
-        elif re.search(r"\b(?:the|my|our) " + role + r"\b", narrative, re.I) and not re.search(
+        elif (
+            re.search(r"\b(?:the|my|our) " + role + r"\b", narrative, re.I)
+            or re.search(
+                role + r"\b[^.]{0,60}\b(?:he|him|his|she|her|hers|they|them|their)\b",
+                narrative,
+                re.I,
+            )
+        ) and not re.search(
             r"\b(?:I was|I am|I'm|as|as the|being the|acting) "
             + role
             + r"\b|\b"
@@ -701,7 +725,7 @@ def supported_synopsis(synopsis, narrative):
             if re.search(r"\b(?:caus\w*|result\w*|led to|because)\b", sentence, re.I)
             else set()
         )
-        if len(cause_terms & hedge_words) >= 2:
+        if len(cause_terms & hedge_words) >= 2 or (content & hedged_only):
             cause_supported = False
         if (
             not any(grounding_flags(narrative, sentence).values())

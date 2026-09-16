@@ -82,9 +82,16 @@ split procedure and hyperparameters are unchanged.
   context adds "neither/nobody/none", "if/whether/any", concern and inspection
   wording and "rather than". Known-outcome rows rose from 8% to 26% of training
   gold (Yes 20%, No 6%).
-- **Event-class grounding.** Nineteen analyst event classes ("near miss",
+- **Synopsis specifics.** Beyond B737-style type codes, named aircraft and
+  descriptors the analyst adds from the report header ("King Air", "narrow body
+  Airbus", "vintage military aircraft") are generalized to "aircraft" unless the
+  narrative names them. A stated cause ("due to fuel mismanagement") must have
+  most of its words attested or the sentence is rejected. Hedged narrator
+  statements promoted to fact by the analyst ("sounded like the gear horn")
+  remain a known, unfixed leak; the review records them.
+- **Event-class grounding.** Twenty-eight analyst event and condition classes ("near miss",
   "runway incursion", "loss of separation", "engine failure", "hard landing",
-  "bird strike", …) must have lexical evidence in the narrative. The check
+  "bird strike", "night", "icing", "crosswind", …) must have lexical evidence in the narrative. The check
   rejects synopsis sentences at build time (about 100 more source rows are
   dropped) and counts against model outputs as a third grounding category at
   evaluation time, for base and adapter alike.

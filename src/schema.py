@@ -147,7 +147,12 @@ class Brief:
 
 def sentences(text):
     text = re.sub(r"(?<=[a-z])\.(?=[A-Z][a-z])", ". ", text)
-    return [s.strip() for s in re.split(r"(?<=[.!?])\s+(?=[A-Z\[\"'])|\n+", text) if s.strip()]
+    # "vs.", "ie.", "i.e.", "eg.", "e.g." and "approx." end abbreviations, not sentences.
+    boundary = (
+        r"(?<!\bvs\.)(?<!\bie\.)(?<!\bi\.e\.)(?<!\beg\.)(?<!\be\.g\.)(?<!\bapprox\.)"
+        r"(?<=[.!?])\s+(?=[A-Z\[\"'])|\n+"
+    )
+    return [s.strip() for s in re.split(boundary, text, flags=re.I) if s.strip()]
 
 
 def parse_brief(text):
@@ -229,7 +234,10 @@ NEGATION = re.compile(
     r"\b(?:no|not|never|without|avoid\w*|prevent\w*|potential|possible|near|nearly|almost"
     r"|risk of|could have|would have|didn't|did not|neither|nobody|no one|none|nor|if|whether|any"
     r"|inquir\w*|check\w* for|inspect\w* for|looked for|concern\w*|worr\w*|fear\w*|threat of"
-    r"|rather than|instead of|suitable for)\b",
+    r"|rather than|instead of|suitable for|even though|had (?:we|I|they|he|she)"
+    r"|remember\w*|recall\w*|last (?:year|summer|winter|spring|fall|month|week|time)|years? ago"
+    r"|previous\w*|prior (?:event|incident|occasion|experience)|in the past"
+    r"|another crew|other crews?|one of our crews|similar (?:situation|event|incident))\b",
     re.I,
 )
 # v0.2: patterns widened from the v0.1 gold review's recorded false negatives
@@ -246,10 +254,12 @@ COMPLETED = re.compile(
     r"|wing ?tip (?:struck|hit|contacted|clipped|scraped|dipped into|dragged)|prop(?:eller)? strike|tail strike|ground loop"
     r"|crashed|hull loss|off[- ](?:airport|field) landing|forced landing"
     r"|landed (?:in|on) (?:a |the )?(?:field|grass|pasture|highway|road|water|lake|river|beach|street)|ditched"
-    r"|ground contact|runway excursion"
+    r"|ground contact|runway (?:excursion|overrun)|overr(?:an|un) the (?:runway|end)|ran off the end"
+    r"|(?:nose|main|landing|left|right) ?(?:gear|wheel|strut) (?:was )?(?:collapsed|sheared|separated|broke|failed|folded)"
     r"|(?:went|ran|slid|veered|skidded|rolled) off (?:the |of the )?(?:end of the |side of the |edge of the )?(?:runway|taxiway|pavement)"
     r"|departed (?:the )?(?:runway|taxiway|pavement) (?:to the (?:left|right)|into|surface)"
-    r"|into the (?:grass|dirt|mud|ditch|snow ?bank|weeds|brush)"
+    r"|(?:aircraft|airplane|plane|helicopter|glider|we|I|it|nose|gear|wing|wheel|tire|tyre|main|left|right)"
+    r" (?:\w+ ){0,4}?into the (?:grass|dirt|mud|ditch|snow ?bank|weeds|brush)"
     r"|nosed over|flipped over|overturned|rolled over"
     r"|(?:substantial|significant|major|structural|extensive) damage|sustained (?:\w+ )?damage"
     r"|damage to (?:the |our |my |his |her )?(?:aircraft|airplane|plane|wing|propeller|prop|gear|engine|fuselage|tail|nose|helicopter)"
@@ -258,9 +268,10 @@ COMPLETED = re.compile(
 )
 SUCCESS = re.compile(
     r"\b(?:(?:I|we) (?:(?:then|immediately|successfully|safely|quickly|eventually|promptly|both) )?"
-    r"(?:stopped|queried ATC|went (?:around|missed)|rejected|aborted"
+    r"(?:stopped(?! (?:our |the |my |his |her |their )?(?:climb|descent|turn|checklist|conversation"
+    r"|discussion|talking|looking|counting|monitoring|briefing))|queried ATC|went (?:around|missed)|rejected|aborted"
     r"|(?:discontinued|broke off) (?:the |our )?(?:approach|takeoff|landing|departure)"
-    r"|elected to (?:go around|go-around|reject|abort|return|divert|discontinue|land))"
+    r"|elected to (?:go around|go-around|reject|abort|return|divert|discontinue))"
     r"|(?:I|we) diverted(?! (?:my|our|his|her|their) attention)|diverted (?:to|back to|the (?:flight|aircraft))\b"
     r"|(?:executed|performed|initiated|completed|commenced|flew|made|called for|elected) (?:a |an |the )?"
     r"(?:go[- ]around|missed approach|rejected takeoff|(?:low|slow|high)[- ]speed (?:reject|abort)|reject|abort"
@@ -273,6 +284,7 @@ SUCCESS = re.compile(
     r"|(?:regained|restored|reestablished|re-established) (?:aircraft |positive |radio |standard )?(?:control|separation|communication|contact)"
     r"|returned (?:to|for) (?:the |our )?(?:departure airport|field|airport|gate|land\w*)"
     r"|landed (?:safely|without (?:further |any )?(?:incident|event|problem)|uneventfully)"
+    r"|(?:flight|approach|landing|climb-?out|remainder of the flight) (?:was|were) uneventful"
     r"|went around|go[- ]around was (?:executed|performed|initiated|flown))\b",
     re.I,
 )
@@ -328,8 +340,15 @@ NOT_A_LESSON = re.compile(
     r"|\b(?:would|could|might) (?:\w+ ){0,2}?(?:should|need to|have to)\b"
     r"|\b(?:do not|don't|did not|didn't) (?:\w+ ){0,1}?(?:feel|think|believe|see)\b"
     r"|\bno (?:suggestions?|recommendations?|lessons?)\b"
-    r"|^Never (?:did|was|were|have|had|has)\b",
+    r"|^Never (?:did|was|were|have|had|has)\b"
+    r"|\bI should (?:also |just |probably )?(?:note|mention|add|point out|say|state|clarify|explain|emphasize|stress)\b"
+    r"|\bshould have (?:had|shown|read|indicated|been (?:at|about|around|approximately|near|reading|showing"
+    r"|indicating|off|on|in|out|set|selected|closed|open|armed|engaged|extended|retracted|down|up))\b",
     re.I,
+)
+# A near-miss statement describes; a sentence that prescribes is a lesson candidate.
+PRESCRIPTIVE = re.compile(
+    r"\b(?:should|must|need(?:s)? to|don't|do not|never|always|recommend\w*|suggest\w*)\b", re.I
 )
 ANAPHORA = re.compile(r"(?:If so|This|That|It|He|She|They|Which)\b", re.I)
 
@@ -337,8 +356,15 @@ ANAPHORA = re.compile(r"(?:If so|This|That|It|He|She|They|Which)\b", re.I)
 def extract_lesson(parts, exclude=()):
     """Last explicit recommendation sentence, verbatim, or None stated."""
     for sentence in reversed(parts):
-        # Drop list enumerators that the sentence splitter leaves attached.
+        # Drop list enumerators and section labels ("Procedures - ", "Recommendation: ").
         sentence = re.sub(r"^\d{1,2}[.)]\s+", "", sentence)
+        sentence = re.sub(
+            r"^(?:Procedures?|Recommendations?|Suggestions?|Lessons?(?: learned)?|Corrective actions?|Comments?)"
+            r"\s*[-:\u2013\u2014]\s*",
+            "",
+            sentence,
+            flags=re.I,
+        )
         sentence = re.sub(r"\.\s*\d{1,2}\.$", ".", sentence)
         if (
             5 <= len(sentence.split()) <= 35
@@ -365,6 +391,8 @@ def unnegated_match(pattern, sentence):
             re.I,
         ):
             continue
+        if pattern is COMPLETED and re.search(r"\b(?:before|recover\w*|prior to)\b", prefix, re.I):
+            continue  # "recovered before the wing tip struck the ground"
         if not NEGATION.search(prefix):
             return match
     return None
@@ -408,7 +436,7 @@ EVENT_CLAIMS = (
     (
         "engine failure",
         r"\bengine failure\b",
-        r"engine (?:fail|quit|stop|flame|loss|out|problem|trouble|indication)|lost (?:the |an |#?\d )?engine|power loss|loss of power|shut ?down|surg|roll ?back|dead engine",
+        r"engine (?:fail|quit|stop|flame|loss|out|problem|trouble)|lost (?:the |an |#?\d )?engine|power loss|loss of power|dead engine",
     ),
     (
         "hard landing",
@@ -436,6 +464,14 @@ EVENT_CLAIMS = (
     ("injury", r"\binjur(?:y|ies|ed)\b", r"injur|hurt|medical|paramedic|wound"),
     ("wake turbulence", r"\bwake turbulence\b", r"wake"),
     ("CFIT", r"\bCFIT\b", r"CFIT|terrain|GPWS|pull up"),
+    ("night", r"\bnight(?:time)?\b", r"night|dark|evening|dusk|sunset|hours of darkness"),
+    ("icing", r"\bicing\b", r"\bic(?:e|ing|ed)\b|frost|rime|anti-?ice|de-?ice"),
+    ("fog", r"\bfog\b", r"fog|mist|visibility"),
+    ("thunderstorm", r"\bthunderstorm\w*\b", r"thunderstorm|storm|convective|lightning|cell"),
+    ("snow", r"\bsnow\b", r"snow|slush|winter|blizzard"),
+    ("crosswind", r"\bcross[- ]?winds?\b", r"cross[- ]?wind|wind"),
+    ("wind shear", r"\bwind ?shear\b", r"shear|microburst|gust"),
+    ("turbulence", r"\bturbulence\b", r"turbulen|chop|bump|rough air|jolt"),
 )
 EVENT_CLAIMS = tuple(
     (name, re.compile(claim, re.I), re.compile(evidence, re.I))
@@ -498,7 +534,30 @@ EVENT_WORDS = re.compile(
     re.I,
 )
 HYPOTHETICAL = re.compile(
-    r"\b(?:would have|could have|if we|if I|should have|my question|I wonder|hopefully|will have|should|recommend)\b",
+    r"\b(?:would have|could have|if we|if I|should have|my question|I wonder|hopefully|will have|should|recommend\w*|suggest\w*)\b",
+    re.I,
+)
+
+
+# Named types and descriptors that analyst synopses add from the report header.
+# Proper nouns only (case-sensitive) so ordinary words are never rewritten.
+AIRCRAFT_NAME = re.compile(
+    r"\b(?:King Air|Airbus|Boeing|Cessna|Piper|Cirrus|Mooney|Beech(?:craft)?|Bonanza|Baron|Citation"
+    r"|Gulfstream|Lear(?:jet)?|Challenger|Embraer|Pilatus|Caravan|Skyhawk|Skylane|Cherokee|Archer"
+    r"|Warrior|Seminole|Seneca|Saratoga|Navajo|Malibu|Meridian|Aztec|Comanche|Tomahawk|Robinson"
+    r"|Sikorsky|Eurocopter|Dash ?8|Q400|Saab|Metroliner|Twin Otter|Super Cub|Piper Cub|Husky"
+    r"|Decathlon|Citabria|Stearman|Hawker|Premier|Phenom|Sovereign|Kodiak|Islander|Twin Commander"
+    r"|Aero Commander|Queen Air|Duke|Travel Air|Twin Bonanza|Lancair|Glasair|Kitfox|Fokker|Dornier"
+    r"|Hondajet|Bell \d{3}|Diamond DA-?\d+|TBM-?\d*|PC-?12|DC-?\d+|CJ\d|SR-?2[02]|DA-?\d{2}|RV-?\d{1,2})\b"
+)
+QUALIFIERS = (
+    r"Light|Aerobatic|Corporate|Business|Small|Large|Heavy|Narrow[- ]body|Wide[- ]body|Vintage|Military"
+    r"|Regional|Single[- ]engine|Twin[- ]engine|Multi[- ]engine|Turboprop|Piston|Commuter|Cargo|Experimental"
+    r"|Homebuilt|Amateur[- ]built|Ultralight|Tailwheel|High[- ]performance|Antique|Warbird|Jet|Air taxi"
+    r"|Fractional|Charter|Air carrier"
+)
+CAUSAL = re.compile(
+    r"\b(?:due to|because of|as a result of|caused by|resulting from|attributed to|as a consequence of)\b",
     re.I,
 )
 
@@ -521,9 +580,15 @@ def supported_synopsis(synopsis, narrative):
         if not re.search(r"\b" + role + r"\b", narrative, re.I):
             synopsis = re.sub(r"\b" + role + r"\b", "reporter", synopsis, flags=re.I)
     synopsis = AIRCRAFT_TYPE.sub(generalize, synopsis)
-    for qualifier in ("Light", "Aerobatic", "Corporate", "Business", "Small", "Large", "Heavy"):
-        if qualifier.lower() not in words(narrative):
-            synopsis = re.sub(r"\b" + qualifier + r"(?= aircraft\b)", "", synopsis, flags=re.I)
+    synopsis = AIRCRAFT_NAME.sub(generalize, synopsis)
+    for qualifier in QUALIFIERS.split("|"):
+        if not re.search(r"\b" + qualifier + r"\b", narrative, re.I):
+            synopsis = re.sub(
+                r"\b" + qualifier + r"(?=(?:\s+(?:" + QUALIFIERS + r"))*\s+aircraft\b)",
+                "",
+                synopsis,
+                flags=re.I,
+            )
     synopsis = re.sub(r" +", " ", synopsis).strip()
     synopsis = re.sub(r"\ba aircraft\b", "an aircraft", synopsis, flags=re.I)
     synopsis = re.sub(r"\b(?:an? )?aircraft flight crew\b", "The flight crew", synopsis, flags=re.I)
@@ -534,9 +599,14 @@ def supported_synopsis(synopsis, narrative):
     for index, sentence in enumerate(sentences(synopsis)):
         content = words(sentence)
         overlap = len(content & source) / max(1, len(content))
+        cause = CAUSAL.split(sentence, maxsplit=1)
+        cause_words = words(cause[1]) if len(cause) > 1 else set()
+        # A stated cause is the claim most often invented; its own words must be attested.
+        cause_supported = not cause_words or len(cause_words & source) / len(cause_words) >= 0.6
         if (
             not any(grounding_flags(narrative, sentence).values())
             and overlap >= 0.50
+            and cause_supported
             and EVENT_WORDS.search(sentence)
             and not HYPOTHETICAL.search(sentence)
             and not sentence.endswith("?")
@@ -563,6 +633,7 @@ def compose_gold(row, narrative):
             if unnegated_match(NEAR_MISS, sentence)
             and sentence != happened
             and len(sentence.split()) <= 60
+            and not PRESCRIPTIVE.search(sentence)
         ),
         "None stated",
     )

@@ -44,8 +44,9 @@ identical for base, adapter, training and inference across versions.
 
 ## Supervision and limitations
 
-Gold prose uses the first source-checked synopsis sentences. Unsupported known
-aircraft types are generalized to aircraft; unsupported role titles to reporter.
+Gold prose uses the first source-checked synopsis sentences. Unsupported aircraft
+types, named models and descriptors are generalized to aircraft; unsupported role
+titles to reporter; a stated cause must be attested by the narrative.
 A target is rejected for ungrounded numbers/acronyms, an asserted event class the
 narrative never mentions, less than 50% content-word overlap, explicit narrator
 uncertainty, or unsupported airport elevation claims. The first synopsis sentence

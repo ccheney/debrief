@@ -323,3 +323,168 @@ def test_unsupported_event_class_in_synopsis_is_rejected():
         COLUMNS["factor"]: "Human Factors",
     }
     assert compose_gold(row, narrative) is None
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        (
+            "We never got a warning even though had we stopped our turn we would have hit terrain.",
+            "Unknown",
+        ),
+        ("During climbout we stopped our climb due to electrical malfunctions.", "Unknown"),
+        (
+            "I applied maximum braking to avoid a collision with the vehicle and it swerved into the grass.",
+            "Yes",
+        ),
+        ("The airplane went into the grass beside the runway.", "No"),
+        (
+            "Remembering the close call another crew had last summer; I elected to land with manual thrust.",
+            "Unknown",
+        ),
+        ("We stopped short of the hold line.", "Yes"),
+    ],
+)
+def test_recovery_review_regressions(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+def test_recollected_near_miss_is_not_this_incident():
+    from src.schema import NEAR_MISS, unnegated_match
+
+    assert (
+        unnegated_match(
+            NEAR_MISS,
+            "Remembering the close call one of our crews had last summer; I elected to land.",
+        )
+        is None
+    )
+    assert unnegated_match(NEAR_MISS, "We had a close call with a fuel truck.") is not None
+
+
+def test_i_should_note_is_narration():
+    from src.schema import extract_lesson
+
+    assert (
+        extract_lesson(
+            ["I should note; at no time did we have any indication of smoke on the flight deck."]
+        )
+        == "None stated."
+    )
+
+
+def test_abbreviations_do_not_end_sentences():
+    from src.schema import sentences
+
+    assert sentences("Revise the restriction to 12000 vs. 10000 feet. Then we landed.") == [
+        "Revise the restriction to 12000 vs. 10000 feet.",
+        "Then we landed.",
+    ]
+    assert len(sentences("Avoid crossing restrictions ie. Those with potential for conflict.")) == 1
+    assert len(sentences("We stopped. We waited. We went.")) == 3
+
+
+def test_engine_shutdown_is_not_engine_failure_evidence():
+    narrative = "The reverser light came on with a slight engine rollback and we shut the engine down per the QRH."
+    assert grounding_flags(narrative, "The crew reported an engine failure.")["events"] == [
+        "engine failure"
+    ]
+    assert not grounding_flags(
+        "The engine quit at 500 feet.", "The crew reported an engine failure."
+    )["events"]
+
+
+def test_named_aircraft_and_descriptors_generalized_when_unattested():
+    narrative = "We feathered the propellers and the left brake failed during taxi; the prop struck a taxi light."
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "The pilot of a King Air aircraft reported a left brake failure during taxi.",
+        COLUMNS["factor"]: "Aircraft",
+    }
+    brief = compose_gold(row, narrative)
+    assert brief and "King Air" not in brief.what_happened and "an aircraft" in brief.what_happened
+    row = {
+        COLUMNS["synopsis"]: "Narrow body Airbus flight crew reported a roll upset during climb.",
+        COLUMNS["factor"]: "Aircraft",
+    }
+    brief = compose_gold(
+        row,
+        "During climb the aircraft rolled sharply and the side stick felt loose; the remainder of the flight was uneventful.",
+    )
+    assert brief and "Airbus" not in brief.what_happened and "Narrow" not in brief.what_happened
+
+
+def test_unattested_night_and_cause_are_rejected():
+    narrative = "On the visual approach the EGPWS called terrain and we climbed to the MSA before continuing."
+    assert grounding_flags(
+        narrative, "The crew reported a terrain warning on a night visual approach."
+    )["events"] == ["night"]
+    narrative = "After about two hours the engine began to die and I made a forced landing in a field; I had planned 19 gallons."
+    row = {
+        COLUMNS["synopsis"]: "Pilot reported a loss of engine power due to fuel mismanagement.",
+        COLUMNS["factor"]: "Human Factors",
+    }
+    assert compose_gold(row, narrative) is None
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "Pilot reported a loss of engine power and a forced landing in a field.",
+        COLUMNS["factor"]: "Human Factors",
+    }
+    assert compose_gold(row, narrative) is not None
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        ("We overran the runway and the nose wheel was sheared off.", "No"),
+        (
+            "I was able to recover the aircraft before the wing tip struck the ground. The remainder of the flight was uneventful.",
+            "Yes",
+        ),
+    ],
+)
+def test_overrun_and_recovered_before_contact(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "By now I should have had 2600 RPM but still had slightly less than 2500.",
+        "If the checklist was followed properly; both the fuel switches and the fire switches should have been off.",
+    ],
+)
+def test_expected_state_narration_is_not_a_lesson(sentence):
+    from src.schema import extract_lesson
+
+    assert extract_lesson([sentence]) == "None stated."
+
+
+def test_prescriptive_sentence_is_not_a_near_miss_and_recommends_is_hypothetical():
+    narrative = (
+        "We crossed STUBL at 320 knots after a misunderstanding with ATC. "
+        "Procedures - Don't build crossing restrictions that have potential for conflict ie. speed and altitude together."
+    )
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "Flight crew reported a speed deviation on the arrival after a misunderstanding with ATC.",
+        COLUMNS["factor"]: "Procedure",
+    }
+    brief = compose_gold(row, narrative)
+    assert (
+        brief
+        and brief.what_almost_happened == "None stated"
+        and brief.lesson.startswith("Don't build crossing restrictions")
+    )
+    from src.schema import supported_synopsis
+
+    assert (
+        supported_synopsis(
+            "A Maintenance Controller recommends that APU compartments be checked after a failed start.",
+            "The APU failed to start and the compartment was checked later.",
+        )
+        == []
+    )

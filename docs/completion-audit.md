@@ -15,19 +15,25 @@ ran from training commit `ca46d59`; v0.2 runs from the commit recorded in its
 | No training data in git beyond ten-row sample | Git ignores raw/full processed data and weights; only `data/processed/sample.jsonl` is tracked. |
 | Isolated GPU dependencies, pinned base, 12 GB | Dedicated Docker image; verified NVIDIA 3080 Ti, Unsloth, bf16 and model reload. Exact dependencies in `requirements-gpu.lock.txt`. |
 | 50-step dry run; checkpoint write/reload | Completed: `eval_runs/dry_run_meta.json`, 321.8 seconds, peak reserved 8.74 GiB. Dry adapter reload produced parseable fixture JSON. |
-| Full 4k × 2 epochs within six hours | v0.1: 1,000 steps in 5,679 s, peak reserved 9.34 GiB (`eval_runs/asrs-v01_meta.json`). |
+| Full 4k × 2 epochs within six hours | v0.1: 1,000 steps in 5,679 s, 9.34 GiB. v0.2: 1,056 steps in 5,998 s, 8.74 GiB (`eval_runs/asrs-v02_meta.json`). |
 | Resume from checkpoint | CPU tests cover incomplete saves, changed data/config and subset mismatch. GPU restart check passed 2026-09-15 on the v0.2 data: `docs/resume-verification.md`. |
 | Loss/LR/time/VRAM/git/model provenance | Recorded per run in `eval_runs/<run>_meta.json` and `<run>_loss.csv`. Training-time eval loss is a training-set probe. |
-| Base versus adapter on all 400 reports | v0.1: `eval_runs/v01.md`, `v01_metrics.json`. v0.2: pending. |
-| Validity ≥95%, factor +15 pp, phase +10 pp | v0.1 passed all three (1.00; +37 pp; +44 pp). |
-| Grounding ≤10% and no worse than base | v0.1 passed the lexical check (0.5% vs 3.0%); the rubric found semantic errors in 8 of 22 rows. v0.2 adds event-class grounding to the automatic check. |
-| Recovery improves without collapsing | v0.1 failed both: 0.23 vs 0.58 on 31 rows, and no No predictions. Root cause is gold prevalence; see `docs/v01-results.md`. |
-| Near-miss distinction, one-sentence lesson, length | v0.1: 0.56 on 9 rows (target 0.80); no lesson ever emitted; median 59 tokens. |
-| Rubric: 20 random outputs plus failure clusters | v0.1 reviewed in `docs/v01-results.md`. |
-| Adapter model card and reload | v0.1 adapter reloads; card written at save time. |
+| Base versus adapter on all 400 reports | v0.1: `eval_runs/v01.md`. v0.2: `eval_runs/v02.md`, `v02_metrics.json`; all nine gates pass. |
+| Validity ≥95%, factor +15 pp, phase +10 pp | v0.1: 1.00, +37, +44. v0.2: 1.00, +41, +47. |
+| Grounding ≤10% and no worse than base | v0.1: 0.5% vs 3.0% (numbers/acronyms). v0.2: 3.3% vs 6.2% with event classes included; rubric 16 of 20 random rows clean. |
+| Recovery improves without collapsing | v0.1 failed both. v0.2: 0.51 vs 0.43 on 109 rows, Yes 52 / No 8 predicted; conservative on completed events. |
+| Near-miss distinction, one-sentence lesson, length | v0.2: 0.55 on 11 rows (target 0.80 not met); lessons verbatim and grounded (71 emitted, recall 0.61); median 64 tokens. |
+| Rubric: 20 random outputs plus failure clusters | v0.1 in `docs/v01-results.md`; v0.2 in `docs/v02-results.md` (30 rows). |
+| Adapter model card and reload | v0.1 and v0.2 adapters reload; cards written at save time; v0.2 demos and evaluation ran from the saved adapter. |
 | Text, JSON, batch inference | Text/JSON verified on v0.1 demos. Batch verified 2026-09-15 with the v0.1 adapter on `fixtures/batch.jsonl`: three valid briefs, exit 0, 30 s including model load. |
-| Three unseen examples (aviation, ops, ambiguous) | v0.1 demos recorded in `docs/v01-results.md`; all three missed the lesson and recovery. |
+| Three unseen examples (aviation, ops, ambiguous) | v0.2: go-around and Docker fixtures return their lessons, the ambiguous one-liner answers Unknown throughout (`docs/v02-results.md`). |
 | Unsloth Studio on Cathedral with hostname | Live at `http://unsloth.cathedral.home.arpa`; password persistence across container replacement verified. |
+
+## Decision after v0.2
+
+All nine automatic gates pass and the rubric finds grounding better than v0.1 with
+the residual errors documented. **Ship locally** as an experimental adapter per
+PRD Phase 4; not a human sign-off; the should-hit near-miss target is not met.
 
 ## Decision after v0.1
 

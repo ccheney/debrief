@@ -10,7 +10,7 @@ tags: [qlora, incident-briefs, asrs, debrief]
 ---
 # Debrief — debrief-qwen3-8b-asrs-v02
 
-**Status: v0.2 training; v0.1 evaluated and not accepted.**
+**Status: v0.2 passes all automatic gates and the agent rubric; accepted for local experimental use only.**
 
 Debrief converts incident narratives into seven-section briefs. The checkpoint
 name identifies the base, domain and version; it is independent of the product name.
@@ -33,7 +33,7 @@ name identifies the base, domain and version; it is independent of the product n
 | Checkpoint | Gold rules | Held-out verdict |
 |---|---|---|
 | `debrief-qwen3-8b-asrs-v01` | label map 3 | Not accepted. Schema 100%, factor 0.70 (base 0.33), phase 0.77 (base 0.32), grounding flags 0.5% (base 3.0%); lesson never emitted, recovery collapsed to Unknown. [Details](docs/v01-results.md). |
-| `debrief-qwen3-8b-asrs-v02` | label map 4 | Pending. |
+| `debrief-qwen3-8b-asrs-v02` | label map 4 | All gates pass. Schema 1.00, factor 0.73 (base 0.32), phase 0.81 (base 0.34), recovery 0.51 on 109 derivable rows (base 0.43) with both classes predicted, grounding flags 3.3% (base 6.2%) including event classes; lessons verbatim and grounded, recall 0.61. [Details](docs/v02-results.md). |
 
 ## Schema
 

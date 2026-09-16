@@ -613,3 +613,45 @@ def test_hedged_cause_is_not_supervised():
     assert supported_synopsis(
         "Flight crew reported severe turbulence and a 3000 foot altitude loss.", narrative
     )
+
+
+def test_role_modifier_goes_with_an_unsupported_role():
+    from src.schema import supported_synopsis
+
+    narrative = "I was working Local by myself. An aircraft was cleared to cross the runway and separation was lost."
+    assert supported_synopsis(
+        "Tower Controller reported a loss of separation when an aircraft was cleared to cross the runway.",
+        narrative,
+    ) == [
+        "Reporter reported a loss of separation when an aircraft was cleared to cross the runway."
+    ]
+    narrative = "The engine cowling latch was left unlatched and the panel departed in flight."
+    assert supported_synopsis(
+        "Air carrier Maintenance Technician reported an engine cowling latch was left unlatched and the panel departed.",
+        narrative,
+    ) == ["Reporter reported an engine cowling latch was left unlatched and the panel departed."]
+    narrative = "As Captain I saw the engine quit during climb; the engine failure was obvious."
+    assert (
+        "The Captain reported"
+        in supported_synopsis(
+            "The Captain reported an engine failure during climb after the engine quit.", narrative
+        )[0]
+    )
+
+
+@pytest.mark.parametrize(
+    ("sentence", "is_near_miss"),
+    [
+        ("We brought our plane to a stop just prior to colliding with the other aircraft.", True),
+        ("I turned right to avoid the other aircraft.", True),
+        ("The other aircraft passed below us by about 400 FT.", True),
+        ("The traffic passed off our nose at 200 feet.", True),
+        ("We stopped prior to the hold short line.", False),
+        ("We taxied behind the other aircraft at the gate.", False),
+        ("We passed over the fix at 5000 feet.", False),
+    ],
+)
+def test_near_miss_v03_patterns(sentence, is_near_miss):
+    from src.schema import NEAR_MISS, unnegated_match
+
+    assert bool(unnegated_match(NEAR_MISS, sentence)) is is_near_miss

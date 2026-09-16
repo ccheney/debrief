@@ -103,3 +103,36 @@ split procedure and hyperparameters are unchanged.
   evaluation time, for base and adapter alike.
 
 The 100-row agent review of the v0.2 splits is in [gold-review-v02.md](gold-review-v02.md).
+
+## v0.3
+
+Measured from the v0.2 held-out run, three data changes; the base, prompts and
+hyperparameters are unchanged again.
+
+- **Role generalization keeps its grammar.** v0.2 replaced an unsupported role
+  word but left the facility modifier, so 107 of 4,222 cards read "Tower
+  reporter" or "Maintenance reporter" and the adapter reproduced the artifact on
+  16 of 400 briefs. The substitution now consumes up to two leading modifiers
+  (Tower, Ground, Center, TRACON, Air carrier, Maintenance, Ramp, Station, …),
+  and a stray modifier left in front of "reporter" is dropped. A role the
+  narrative supports still keeps its original wording. The artifact is now zero
+  in both splits.
+- **Near miss covers avoided contact and stated distances.** Added "just prior
+  to colliding with", "to avoid the other aircraft", and "passed below/above/off
+  us by N feet". These are wordings the v0.2 adapter surfaced from narratives
+  where the gold rule had found nothing. Gold coverage rises from 2.8% to 3.1%
+  of training rows.
+- **Completed events are oversampled.** v0.2 recall was 6 of 11 on near misses
+  and 7 of 23 on completed events ("No"). Across both rare fields the adapter
+  under-predicted its training prevalence by roughly 2 to 2.5 times, so rows
+  with a "No" recovery are written three times in the training split, the same
+  factor already used for near-miss rows. That puts "No" at 16% of written
+  training rows against a true held-out rate near 6%; the intent is a predicted
+  rate near the true one, and the held-out split keeps its natural mix. If the
+  adapter instead over-predicts "No" and recovery accuracy falls below the base,
+  the factor is the first thing to lower.
+
+Not changed: the ATC primary-factor class stays as mapped. It is 0.2% of gold
+and effectively unlearnable from this source, but widening the override would
+also move the evaluation target and break comparability across versions. The
+v0.2 rubric records controller-attributed events landing in Human or Procedure.

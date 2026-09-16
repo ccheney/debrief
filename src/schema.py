@@ -315,6 +315,11 @@ NEAR_MISS = re.compile(
     r"|came (?:very |too |extremely |dangerously )?close to"
     r"|narrowly (?:missed|avoided|averted)"
     r"|within \d[\d;,]* ?(?:ft|feet|foot|meters|m|yards) (?:horizontally|vertically|laterally|of|from)"
+    r"|(?:just )?(?:prior to|before) (?:collid\w*|hitting|striking|impact\w*|making contact)"
+    r"|to avoid (?:collid\w*|hitting|striking|the (?:other|oncoming|approaching|departing|preceding)"
+    r" (?:aircraft|airplane|traffic|helicopter))"
+    r"|passed (?:below|above|under|over|in front of|behind|off) (?:us|me|our|my|the nose)"
+    r"(?: \w+){0,3} (?:by |at |about |approximately )*\d[\d;,]*"
     r"|evasive (?:action|maneuver))\b",
     re.I,
 )
@@ -573,6 +578,15 @@ QUALIFIERS = (
     r"|Homebuilt|Amateur[- ]built|Ultralight|Tailwheel|High[- ]performance|Antique|Warbird|Jet|Air taxi"
     r"|Fractional|Charter|Air carrier"
 )
+# Facility or organization words an analyst puts in front of a role. When the role
+# itself is unsupported the modifier goes with it, so a card never reads
+# "Tower reporter"; a narrative-supported role keeps its original wording.
+ROLE_MODIFIER = (
+    r"(?:Air carrier|Air taxi|Aircraft|Airline|Company|Corporate|Regional|Commuter|Cargo|Charter"
+    r"|Tower|Ground|Local|Center|Enroute|Approach|Departure|TRACON|ARTCC|Facility|Ramp|Station"
+    r"|Maintenance|Line|Hangar|Contract|Fractional|Military|General Aviation"
+    r"|Lead|Senior|Relief|Check|Training|Chief|Assistant|Duty|Supervisor)"
+)
 ROLES = (
     "Captain",
     "First Officer",
@@ -625,7 +639,12 @@ def supported_synopsis(synopsis, narrative):
             return []
     for role in ROLES:
         if not re.search(r"\b" + role + r"\b", narrative, re.I):
-            synopsis = re.sub(r"\b" + role + r"\b", "reporter", synopsis, flags=re.I)
+            synopsis = re.sub(
+                r"\b(?:" + ROLE_MODIFIER + r"\s+){0,2}" + role + r"\b",
+                "reporter",
+                synopsis,
+                flags=re.I,
+            )
         elif re.search(r"\b(?:the|my|our) " + role + r"\b", narrative, re.I) and not re.search(
             r"\b(?:I was|I am|I'm|as|as the|being the|acting) "
             + role
@@ -638,9 +657,17 @@ def supported_synopsis(synopsis, narrative):
             # The narrator refers to this role in the third person, so the analyst's
             # attribution of the report to that role is not supported by the narrative.
             synopsis = re.sub(
-                r"\b" + role + r"\b(?=[^.]{0,40}\breport)", "reporter", synopsis, flags=re.I
+                r"\b(?:" + ROLE_MODIFIER + r"\s+){0,2}" + role + r"\b(?=[^.]{0,40}\breport)",
+                "reporter",
+                synopsis,
+                flags=re.I,
             )
-    synopsis = re.sub(r"\breporter (?:pilot|personnel|crew)\b", "reporter", synopsis, flags=re.I)
+    synopsis = re.sub(
+        r"\breporter (?:pilot|personnel|crew|controller)\b", "reporter", synopsis, flags=re.I
+    )
+    # A leftover modifier in front of the substitution reads as "Tower reporter".
+    synopsis = re.sub(r"\b" + ROLE_MODIFIER + r"\s+(?=reporter\b)", "", synopsis, flags=re.I)
+    synopsis = re.sub(r"\breporter reporter\b", "reporter", synopsis, flags=re.I)
     synopsis = AIRCRAFT_TYPE.sub(generalize, synopsis)
     synopsis = AIRCRAFT_NAME.sub(generalize, synopsis)
     for qualifier in QUALIFIERS.split("|"):

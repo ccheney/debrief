@@ -1,4 +1,4 @@
-version: v02
+version: v03
 model_id: unsloth/Qwen3-8B-unsloth-bnb-4bit
 model_revision: 62efd7f9d748e394734a7adae2adf96e13a2abc8
 dataset_id: elihoole/asrs-aviation-reports
@@ -8,6 +8,7 @@ seed: 42
 train_size: 4000
 eval_size: 400
 oversample_near_miss: 3
+oversample_recovery_no: 3
 narrative_tokens: 1200
 max_seq_length: 2048
 lora_rank: 16
@@ -21,7 +22,7 @@ warmup_ratio: 0.05
 num_train_epochs: 2
 train_file: data/processed/train.jsonl
 eval_file: data/processed/eval.jsonl
-output_dir: checkpoints/asrs-v02
-adapter_dir: adapters/debrief-qwen3-8b-asrs-v02
+output_dir: checkpoints/asrs-v03
+adapter_dir: adapters/debrief-qwen3-8b-asrs-v03
 temperature: 0.2
 max_new_tokens: 400

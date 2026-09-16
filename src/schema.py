@@ -226,27 +226,131 @@ def map_factor(value, narrative="", reporter_function=""):
 
 
 NEGATION = re.compile(
-    r"\b(?:no|not|never|without|avoid|avoided|prevented|potential|possible|near|nearly|almost|risk of|could have|would have|didn't|did not)\b",
+    r"\b(?:no|not|never|without|avoid\w*|prevent\w*|potential|possible|near|nearly|almost"
+    r"|risk of|could have|would have|didn't|did not|neither|nobody|no one|none|nor|if|whether|any"
+    r"|inquir\w*|check\w* for|inspect\w* for|looked for|concern\w*|worr\w*|fear\w*|threat of"
+    r"|rather than|instead of|suitable for)\b",
     re.I,
 )
+# v0.2: patterns widened from the v0.1 gold review's recorded false negatives
+# (first-person "I stopped", "performed the reject", "went missed", off-field
+# landings, injuries). Still deterministic keyword rules, still weak supervision.
+# "Exited/departed the runway" and "contacted ground" are normal operations and
+# are deliberately not treated as completed events.
 COMPLETED = re.compile(
-    r"\b(?:collided|collision (?:occurred|with)|landing gear collapsed|struck (?:the |a )?(?:ground|terrain|aircraft|vehicle)|hit (?:the |a )?(?:ground|terrain|aircraft|vehicle)|crashed|hull loss|off[- ]airport landing|ground contact)\b",
+    r"\b(?:collided|collision (?:occurred|with)|(?:landing |nose |main |left |right |tail )?(?:gear|wheel) collapsed"
+    r"|(?:aircraft|airplane|plane|wing ?tip|wing|tail|nose|gear|prop\w*|rotor|skid|helicopter|glider|we|I)"
+    r" (?:\w+ ){0,3}?(?:struck|hit|contacted) the (?:ground(?! control)|terrain|runway surface)"
+    r"|(?:struck|hit|clipped|scraped) (?:a |an |the |our )?(?:vehicle|truck|tug|tractor|light|sign|pole|fence"
+    r"|building|jet ?bridge|jetway|tree|power ?line|wire|(?:parked |another |other )?aircraft|airplane|hangar|cone|barrier)"
+    r"|wing ?tip (?:struck|hit|contacted|clipped|scraped|dipped into|dragged)|prop(?:eller)? strike|tail strike|ground loop"
+    r"|crashed|hull loss|off[- ](?:airport|field) landing|forced landing"
+    r"|landed (?:in|on) (?:a |the )?(?:field|grass|pasture|highway|road|water|lake|river|beach|street)|ditched"
+    r"|ground contact|runway excursion"
+    r"|(?:went|ran|slid|veered|skidded|rolled) off (?:the |of the )?(?:end of the |side of the |edge of the )?(?:runway|taxiway|pavement)"
+    r"|departed (?:the )?(?:runway|taxiway|pavement) (?:to the (?:left|right)|into|surface)"
+    r"|into the (?:grass|dirt|mud|ditch|snow ?bank|weeds|brush)"
+    r"|nosed over|flipped over|overturned|rolled over"
+    r"|(?:substantial|significant|major|structural|extensive) damage|sustained (?:\w+ )?damage"
+    r"|damage to (?:the |our |my |his |her )?(?:aircraft|airplane|plane|wing|propeller|prop|gear|engine|fuselage|tail|nose|helicopter)"
+    r"|aircraft was damaged|(?:was|were|got) (?:seriously |severely |badly )?(?:injured|hurt)|injuries|fatalit\w+|(?:was|were) killed)\b",
     re.I,
 )
 SUCCESS = re.compile(
-    r"\b(?:we (?:(?:then|immediately|successfully|safely|quickly|eventually) )?(?:stopped|queried ATC|went around)"
-    r"|(?:executed|performed|initiated|completed) (?:a |the )?(?:go[- ]around|missed approach)"
-    r"|(?:rejected|aborted) (?:the )?takeoff|followed (?:the )?(?:TCAS )?RA"
-    r"|took evasive action|avoided (?:a |the )?collision|collision was avoided"
-    r"|corrected (?:the |our |my |this )?(?:error|deviation|altitude)"
-    r"|(?:regained|restored|reestablished) (?:aircraft |positive |radio )?(?:control|separation|communication))\b",
+    r"\b(?:(?:I|we) (?:(?:then|immediately|successfully|safely|quickly|eventually|promptly|both) )?"
+    r"(?:stopped|queried ATC|went (?:around|missed)|rejected|aborted"
+    r"|(?:discontinued|broke off) (?:the |our )?(?:approach|takeoff|landing|departure)"
+    r"|elected to (?:go around|go-around|reject|abort|return|divert|discontinue|land))"
+    r"|(?:I|we) diverted(?! (?:my|our|his|her|their) attention)|diverted (?:to|back to|the (?:flight|aircraft))\b"
+    r"|(?:executed|performed|initiated|completed|commenced|flew|made|called for|elected) (?:a |an |the )?"
+    r"(?:go[- ]around|missed approach|rejected takeoff|(?:low|slow|high)[- ]speed (?:reject|abort)|reject|abort"
+    r"|evasive (?:action|maneuver))"
+    r"|(?:rejected|aborted|rejecting|aborting|discontinued|discontinuing) (?:the |our )?(?:takeoff|take-off|landing|approach|departure)"
+    r"|(?:followed|complied with|responded to) (?:the )?(?:TCAS )?RA\b"
+    r"|took evasive action|(?:able to )?avoid(?:ed)? (?:a |an |the )?(?:collision|conflict)"
+    r"|(?:averted|prevented) (?:a |an |the )?(?:collision|conflict|accident|incursion)|collision was avoided"
+    r"|corrected (?:the |our |my |this )?(?:error|deviation|altitude|course|heading|mistake|situation)"
+    r"|(?:regained|restored|reestablished|re-established) (?:aircraft |positive |radio |standard )?(?:control|separation|communication|contact)"
+    r"|returned (?:to|for) (?:the |our )?(?:departure airport|field|airport|gate|land\w*)"
+    r"|landed (?:safely|without (?:further |any )?(?:incident|event|problem)|uneventfully)"
+    r"|went around|go[- ]around was (?:executed|performed|initiated|flown))\b",
     re.I,
 )
 
 NEAR_MISS = re.compile(
-    r"\b(?:near[- ]miss|near mid[- ]air|NMAC|almost (?:hit|collided)|nearly (?:hit|collided)|(?:avoided|prevented) (?:a |the )?collision|potential (?:ground |midair |mid-air )?collision|could have (?:hit|collided))\b",
+    r"\b(?:near[- ]miss(?:es)?|near mid[- ]?air|NMAC|near[- ]collision|close call"
+    r"|(?:almost|nearly) (?:hit|collid\w*|struck|ran (?:into|off)|taxied into|landed on|took off|lost control|stalled|impacted"
+    r"|had an? (?:collision|midair|mid-air|accident|tragic|serious|catastrophic|major|incident))"
+    r"|(?:avoided|prevented|averted) (?:a |an |the )?(?:collision|midair|mid-air|accident|incursion|CFIT)"
+    r"|potential (?:for )?(?:a |an )?(?:ground |midair |mid-air |wingtip )?(?:collision|conflict|CFIT|loss of separation|accident)"
+    r"|(?:could|would|might) have (?:hit|collided|struck"
+    r"|resulted in (?:a |an )?(?:collision|midair|mid-air|accident|CFIT|loss of separation|incursion|crash)"
+    r"|led to (?:a |an )?(?:collision|midair|mid-air|accident|crash)"
+    r"|ended (?:in|with) (?:a |an )?(?:collision|crash|accident)"
+    r"|been (?:a |an )?(?:disaster|catastroph\w+|fatal\w*|deadly|tragic|tragedy|worse|bad|ugly"
+    r"|(?:much |far |a lot )?(?:bigger|larger|worse) (?:problem|issue|deal|situation)"
+    r"|very (?:dangerous|bad|serious|close)|serious (?:incident|accident|collision|conflict)"
+    r"|(?:mid-?air|ground) collision|incident|accident|NMAC|near miss))"
+    r"|came (?:very |too |extremely |dangerously )?close to"
+    r"|narrowly (?:missed|avoided|averted)"
+    r"|evasive (?:action|maneuver))\b",
     re.I,
 )
+
+# Lessons are copied verbatim from the narrative. A sentence qualifies only when
+# the reporter recommends something; narration of the moment and reported speech
+# ("Tower told us we should...") are excluded. Imperatives are accepted only with
+# an explicit lead-in because ASRS narration routinely drops its subject.
+LESSON_START = re.compile(
+    r"^(?:In (?:the future|hindsight|retrospect)|From now on|Next time|Going forward|Lessons? learned"
+    r"|My (?:recommendation|suggestion)|Recommendations?|Suggestions?|(?:Don't|Do not|Never|Always)\b"
+    r"|(?:I|We) (?:will|would) (?:now |always |never |be )|(?:I|We) (?:now |also |strongly )?(?:recommend|suggest))",
+    re.I,
+)
+LESSON_MODAL = re.compile(
+    r"\b(?:I|we|pilots?|crews?|controllers?|operators?|maintenance|dispatch(?:ers)?|everyone|anyone"
+    r"|all (?:aircraft|pilots|crews|controllers|operators)"
+    r"|the (?:crew|company|controller|pilot|airline|FAA|facility|tower)"
+    r"|company|ATC|tower|management|training|airlines?|operations?|procedures?|checklists?|charts?|NOTAMs?)"
+    r" (?:\w+ ){0,2}?(?:should(?: not| never| always)?(?: have)?|need(?:s)? to|must(?! have)|ought to)\b"
+    r"|\b(?:should|ought to|needs? to) (?:be|have been|not be|never be|always be|also be)\b"
+    r"|\bmust (?:be|not be|never be|always be|also be)\b"
+    r"|\bI (?:would |strongly |also |personally )?(?:recommend|suggest)\b",
+    re.I,
+)
+# Reported speech or a description of a rule ("Tower said we should", "the form
+# states it must"), and comparisons ("higher than we should have been"), are
+# narration, not the reporter's recommendation.
+NOT_A_LESSON = re.compile(
+    r"\b(?:told|said|stated|states|says|advised|instructed|informed|replied|asked|responded|answered"
+    r"|agreed|decided|determined|concluded|conclusion|discussed|mentioned|suggested|recommended"
+    r"|requires?|required|where|than|what|how)\b.*?\b(?:should|must|need|ought|will|recommend|suggest)"
+    r"|\b(?:would|could|might) (?:\w+ ){0,2}?(?:should|need to|have to)\b"
+    r"|\b(?:do not|don't|did not|didn't) (?:\w+ ){0,1}?(?:feel|think|believe|see)\b"
+    r"|\bno (?:suggestions?|recommendations?|lessons?)\b"
+    r"|^Never (?:did|was|were|have|had|has)\b",
+    re.I,
+)
+ANAPHORA = re.compile(r"(?:If so|This|That|It|He|She|They|Which)\b", re.I)
+
+
+def extract_lesson(parts, exclude=()):
+    """Last explicit recommendation sentence, verbatim, or None stated."""
+    for sentence in reversed(parts):
+        # Drop list enumerators that the sentence splitter leaves attached.
+        sentence = re.sub(r"^\d{1,2}[.)]\s+", "", sentence)
+        sentence = re.sub(r"\.\s*\d{1,2}\.$", ".", sentence)
+        if (
+            5 <= len(sentence.split()) <= 35
+            and sentence.endswith(".")
+            and "?" not in sentence
+            and sentence not in exclude
+            and not ANAPHORA.match(sentence)
+            and not NOT_A_LESSON.search(sentence)
+            and (LESSON_START.match(sentence) or LESSON_MODAL.search(sentence))
+        ):
+            return sentence
+    return "None stated."
 
 
 def unnegated_match(pattern, sentence):
@@ -277,6 +381,68 @@ def derive_recoverable(narrative, synopsis=""):
     return "Unknown", ""
 
 
+# Event classes an analyst-style summary tends to assert. Each output claim needs
+# lexical evidence in the narrative; the evidence patterns are deliberately
+# permissive so this catches invented classifications, not paraphrase.
+EVENT_CLAIMS = (
+    (
+        "near miss",
+        r"\bnear[- ]miss(?:es)?\b|\bnear mid[- ]?air\b|\bNMAC\b|\bnear[- ]collision\b",
+        r"near[- ]?miss|mid[- ]?air|nmac|near[- ]collision|close call|almost|nearly|evasive|too close|very close|collision|collid",
+    ),
+    (
+        "loss of separation",
+        r"\bloss of separation\b|\bseparation (?:loss|error|was lost)\b",
+        r"separation|(?:less|closer) than|within \d|miles? (?:apart|from|of)|feet (?:apart|from|of|vertical|lateral)",
+    ),
+    (
+        "runway incursion",
+        r"\brunway incursion\b",
+        r"incursion|(?:onto|entered|crossed|across|into) (?:the |an |a )?(?:active |wrong )?runway|hold short|runway without",
+    ),
+    (
+        "runway excursion",
+        r"\brunway excursion\b",
+        r"excursion|off the (?:runway|side|end)|departed the runway|ran off|left the (?:runway|pavement)|into the grass",
+    ),
+    (
+        "engine failure",
+        r"\bengine failure\b",
+        r"engine (?:fail|quit|stop|flame|loss|out|problem|trouble|indication)|lost (?:the |an |#?\d )?engine|power loss|loss of power|shut ?down|surg|roll ?back|dead engine",
+    ),
+    (
+        "hard landing",
+        r"\bhard landing\b",
+        r"hard landing|landed hard|hard touchdown|firm landing|bounced|g[- ]?load|g[- ]?force",
+    ),
+    ("bird strike", r"\bbird ?strike\b", r"bird|goose|geese|wildlife|hawk|gull|duck|vulture"),
+    (
+        "tail strike",
+        r"\btail ?strike\b",
+        r"tail ?strike|tail struck|tail (?:contact|scrap|hit)|struck the tail|tail skid",
+    ),
+    ("prop strike", r"\bprop(?:eller)? strike\b", r"prop"),
+    ("fire", r"\bfire\b", r"fire|flame|burn"),
+    ("smoke", r"\bsmoke\b", r"smoke|fume|odor|smell|haze"),
+    ("go-around", r"\bgo[- ]around\b", r"go[- ]around|went around|go around|missed approach"),
+    ("rejected takeoff", r"\brejected takeoff\b|\bRTO\b", r"reject|abort|RTO"),
+    (
+        "declared emergency",
+        r"\bdeclared an emergency\b",
+        r"emergency|declar|mayday|pan[- ]pan|priority",
+    ),
+    ("diversion", r"\bdivert(?:ed|ion)\b", r"divert|alternate"),
+    ("fatigue", r"\bfatigue\b", r"fatigue|tired|exhaust|sleep|rest\b|duty day"),
+    ("injury", r"\binjur(?:y|ies|ed)\b", r"injur|hurt|medical|paramedic|wound"),
+    ("wake turbulence", r"\bwake turbulence\b", r"wake"),
+    ("CFIT", r"\bCFIT\b", r"CFIT|terrain|GPWS|pull up"),
+)
+EVENT_CLAIMS = tuple(
+    (name, re.compile(claim, re.I), re.compile(evidence, re.I))
+    for name, claim, evidence in EVENT_CLAIMS
+)
+
+
 def grounding_flags(narrative, output):
     """Cheap specifics check, not a semantic hallucination judge."""
 
@@ -291,7 +457,16 @@ def grounding_flags(narrative, output):
     # The controlled class ATC is allowed even when the narrator says controller.
     acronyms = set(re.findall(r"\b[A-Z][A-Z0-9-]{1,}\b", output)) - {"ATC"}
     source_words = set(re.findall(r"\b[A-Z0-9-]+\b", narrative.upper()))
-    return {"numbers": invented_numbers, "acronyms": sorted(acronyms - source_words)}
+    events = [
+        name
+        for name, claim, evidence in EVENT_CLAIMS
+        if claim.search(output) and not evidence.search(narrative)
+    ]
+    return {
+        "numbers": invented_numbers,
+        "acronyms": sorted(acronyms - source_words),
+        "events": events,
+    }
 
 
 def words(text):
@@ -385,7 +560,9 @@ def compose_gold(row, narrative):
         (
             sentence
             for sentence in parts
-            if NEAR_MISS.search(sentence) and sentence != happened and len(sentence.split()) <= 60
+            if unnegated_match(NEAR_MISS, sentence)
+            and sentence != happened
+            and len(sentence.split()) <= 60
         ),
         "None stated",
     )
@@ -401,21 +578,7 @@ def compose_gold(row, narrative):
             phrase = match.group(0)
             if phrase.lower() not in {p.lower() for p in contributors}:
                 contributors.append(phrase)
-    lesson = next(
-        (
-            s
-            for s in reversed(parts)
-            if re.search(
-                r"^(?:(?:We|Pilots|Crews|Controllers|Operators|Maintenance|The crew|Our crew|Flight crews|You) (?:should|need to|must)|I (?:recommend|suggest)|The lesson)",
-                s,
-                re.I,
-            )
-            and len(s.split()) <= 35
-            and not re.match(r"(?:If so|This|That|It|He|She|They)\b", s, re.I)
-            and s.endswith(".")
-        ),
-        "None stated.",
-    )
+    lesson = extract_lesson(parts, exclude=(happened, almost))
     brief = Brief(
         happened,
         almost,
@@ -439,7 +602,7 @@ def label_map():
         "phases": PHASE_MAP,
         "factors": FACTOR_MAP,
         "contributor_evidence": CONTRIBUTOR_EVIDENCE,
-        "version": 3,
+        "version": 4,
         "multi_phase_policy": "first source code (not chronological)",
         "atc_override": ATC_TRIGGER.pattern,
         "atc_function_map": ATC_FUNCTION_MAP,
@@ -447,4 +610,10 @@ def label_map():
         "recoverable_success": SUCCESS.pattern,
         "negation": NEGATION.pattern,
         "near_miss": NEAR_MISS.pattern,
+        "lesson_start": LESSON_START.pattern,
+        "lesson_modal": LESSON_MODAL.pattern,
+        "not_a_lesson": NOT_A_LESSON.pattern,
+        "event_claims": {
+            name: [claim.pattern, evidence.pattern] for name, claim, evidence in EVENT_CLAIMS
+        },
     }

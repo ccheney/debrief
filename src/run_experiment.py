@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from src.common import DEFAULT_CONFIG, read_config, write_json
+from src.common import DEFAULT_CONFIG, read_config, version_of, write_json
 
 
 def main():
@@ -13,13 +13,24 @@ def main():
     parser.add_argument("--config", default=DEFAULT_CONFIG)
     args = parser.parse_args()
     config = read_config(args.config)
-    state_path = Path("eval_runs/experiment_status.json")
-    Path("logs").mkdir(exist_ok=True)
+    version = version_of(config)
+    state_path = Path(f"eval_runs/{version}_status.json")
+    log_dir = Path("logs") / version
+    log_dir.mkdir(parents=True, exist_ok=True)
     stages = [
         ("train", ["-m", "src.train_unsloth", "--config", args.config]),
         (
             "evaluation",
-            ["-m", "src.eval_briefs", "--config", args.config, "--adapter", config["adapter_dir"]],
+            [
+                "-m",
+                "src.eval_briefs",
+                "--config",
+                args.config,
+                "--adapter",
+                config["adapter_dir"],
+                "--output",
+                f"eval_runs/{version}",
+            ],
         ),
     ]
     for name in ("go_around", "docker_oom", "ambiguous"):
@@ -49,11 +60,11 @@ def main():
         state.update(stage=stage, updated_at=time.time())
         write_json(state_path, state)
         output = (
-            Path("eval_runs") / f"{stage}.json"
+            Path("eval_runs") / f"{version}_{stage}.json"
             if stage.startswith("demo_")
-            else Path("logs") / f"{stage}.log"
+            else log_dir / f"{stage}.log"
         )
-        with output.open("w") as stdout, Path("logs", f"{stage}.stderr.log").open("w") as stderr:
+        with output.open("w") as stdout, (log_dir / f"{stage}.stderr.log").open("w") as stderr:
             result = subprocess.run([sys.executable, *command], stdout=stdout, stderr=stderr)
         if result.returncode:
             state.update(
@@ -69,7 +80,7 @@ def main():
         status="complete",
         updated_at=time.time(),
         wall_seconds=time.time() - state["started_at"],
-        acceptance="Read eval_runs/v01_metrics.json and complete the rubric; execution success is not model acceptance.",
+        acceptance=f"Read eval_runs/{version}_metrics.json and complete the rubric; execution success is not model acceptance.",
     )
     write_json(state_path, state)
 

@@ -47,3 +47,46 @@ reviewer and explicitly retain this distinction.
 Human Factors reports map to ATC only for explicit controller attribution, or a known controller function together with explicit first-person error wording. A controller merely reporting a pilot error stays Human.
 
 The frozen 100-row agent review is in [gold-review.md](gold-review.md). It is not a human sign-off. The trainer checks its dataset hashes before a full run.
+
+## v0.2 (label map version 4)
+
+The v0.1 adapter learned the empty priors of three fields (lesson 97.5%,
+near miss 98.6%, recovery Unknown 92% of training gold) and never emitted a
+lesson on the held-out set. v0.2 changes the gold rules only; the prompt, base,
+split procedure and hyperparameters are unchanged.
+
+- **Lesson.** The last narrative sentence that is an explicit reporter
+  recommendation: a subject plus should/need to/must/ought to, a passive
+  "should be", "I recommend/suggest", or a lead-in such as "In the future I
+  will", "Next time", "Lessons learned", "Do not/Never/Always". Sentences with
+  a reporting or decision verb before the modal ("Tower said we should",
+  "we determined that … should"), comparisons ("higher than we should have
+  been"), inverted conditionals, questions, anaphoric openers and sentences
+  under five or over thirty-five words are excluded. Enumerators left by the
+  sentence splitter are stripped. Coverage rose from 2.5% to 22% of training
+  rows; an agent spot-check of 65 extracted lessons found about one in ten to
+  be narration rather than a takeaway.
+- **Near miss.** Explicit near-miss phrases, "almost/nearly" plus a collision
+  verb, "close call", "came (too) close to", "narrowly missed", evasive action,
+  and counterfactuals whose consequence is an accident class ("could have
+  resulted in a collision", "would have been a disaster"). Local negation is
+  respected ("at no time was there a near miss"). Coverage rose from 1.4% to
+  2.8%; because that is still rare, rows with a stated near miss are written
+  three times in the training split only.
+- **Recovery.** Completed outcomes now include damage, injuries, excursions,
+  ground loops, wingtip and prop strikes and off-field landings; successful
+  interventions now include first-person singular forms, progressive
+  wording ("rejecting the takeoff"), "went missed", return or diversion, and
+  landing safely or without incident. "Exited/departed the runway" and
+  "contacted ground" are normal operations and are not matched. Negation
+  context adds "neither/nobody/none", "if/whether/any", concern and inspection
+  wording and "rather than". Known-outcome rows rose from 8% to 26% of training
+  gold (Yes 20%, No 6%).
+- **Event-class grounding.** Nineteen analyst event classes ("near miss",
+  "runway incursion", "loss of separation", "engine failure", "hard landing",
+  "bird strike", …) must have lexical evidence in the narrative. The check
+  rejects synopsis sentences at build time (about 100 more source rows are
+  dropped) and counts against model outputs as a third grounding category at
+  evaluation time, for base and adapter alike.
+
+The 100-row agent review of the v0.2 splits is in [gold-review-v02.md](gold-review-v02.md).

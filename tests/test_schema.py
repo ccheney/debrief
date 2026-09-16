@@ -112,7 +112,7 @@ def test_invalid_schema(mutator):
 
 def test_grounding():
     flags = grounding_flags("SNA at 1,000 feet.", "SNA at 1000 feet; B737 at 2500 feet near LAX.")
-    assert flags == {"numbers": ["2500"], "acronyms": ["B737", "LAX"]}
+    assert flags == {"numbers": ["2500"], "acronyms": ["B737", "LAX"], "events": []}
     assert not any(
         grounding_flags(
             "Tower gave a clearance.",
@@ -182,7 +182,7 @@ def test_recovery_intervention_variants(narrative, expected):
     ("text", "label"),
     [
         ("The tractor was on a collision course with the aircraft.", "Unknown"),
-        ("I was able to avoid a collision using heavy braking.", "Unknown"),
+        ("I was able to avoid a collision using heavy braking.", "Yes"),
         ("The landing gear collapsed during the landing roll.", "No"),
     ],
 )
@@ -217,3 +217,109 @@ def test_unknown_heading_cannot_hide_inside_an_expected_section():
     text = Brief("We stopped.\nUnrequested heading:\nA second statement.").render()
     with pytest.raises(ValueError):
         parse_brief(text)
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        ("I stopped before the hold short line.", "Yes"),
+        ("I performed a low speed reject and taxied clear.", "Yes"),
+        ("We were rejecting the takeoff when Tower called.", "Yes"),
+        ("We went missed and later flew a successful approach.", "Yes"),
+        ("We returned to the departure airport and landed uneventfully.", "Yes"),
+        ("The flight attendant was injured when we braked.", "No"),
+        ("There were no injuries and no damage to the aircraft.", "Unknown"),
+        ("The aircraft departed the runway into the grass.", "No"),
+        ("We made an off-field landing in a pasture.", "No"),
+        ("The wingtip struck the jet bridge during pushback.", "No"),
+        ("I contacted ground control and we taxied to the gate.", "Unknown"),
+        ("I must have missed the call.", "Unknown"),
+    ],
+)
+def test_recovery_v02_patterns(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+def test_completed_event_still_wins_over_later_recovery():
+    label, evidence = derive_recoverable(
+        "We went around. On the second approach the gear collapsed on touchdown."
+    )
+    assert label == "No" and "collapsed" in evidence
+
+
+@pytest.mark.parametrize(
+    ("sentence", "is_lesson"),
+    [
+        ("All aircraft should comply promptly to ATC instructions and advise if unable.", True),
+        (
+            "I should have delayed the after landing checklist until confirming the taxi route.",
+            True,
+        ),
+        ("Controllers should work to clarify the terminology used for PIREPs.", True),
+        ("In the future I will brief the hot spots before every taxi.", True),
+        ("Don't allow flight attendants to serve while waiting on a runway.", True),
+        ("The taxiway closures should be depicted graphically on the chart.", True),
+        ("Tower told us we should hold short of the runway.", False),
+        ("I must have missed the frequency change during the descent.", False),
+        ("This should never have happened to an experienced crew.", False),
+        ("We landed and taxied to the gate without further incident.", False),
+        ("Should we have gone around at that point?", False),
+        ("Lesson learned.", False),
+    ],
+)
+def test_lesson_extraction(sentence, is_lesson):
+    from src.schema import extract_lesson
+
+    parts = ["We were cleared for takeoff on runway one.", sentence]
+    assert (extract_lesson(parts) == sentence) is is_lesson
+
+
+def test_lesson_prefers_last_recommendation_and_skips_reported_speech():
+    from src.schema import extract_lesson
+
+    parts = [
+        "We should have stopped earlier.",
+        "The controller said we should call the tower.",
+        "Crews must confirm the taxi route before moving.",
+    ]
+    assert extract_lesson(parts) == "Crews must confirm the taxi route before moving."
+
+
+@pytest.mark.parametrize(
+    ("sentence", "is_near_miss"),
+    [
+        ("We came very close to the departing traffic.", True),
+        ("It could have resulted in a midair.", True),
+        ("This was a close call with a fuel truck.", True),
+        ("We took evasive action to stay clear of the helicopter.", True),
+        ("We could have hit the tug.", True),
+        ("We almost forgot the checklist.", False),
+        ("The weather was nearly VFR by the time we landed.", False),
+        ("We landed without incident.", False),
+    ],
+)
+def test_near_miss_patterns(sentence, is_near_miss):
+    from src.schema import NEAR_MISS
+
+    assert bool(NEAR_MISS.search(sentence)) is is_near_miss
+
+
+def test_event_class_claims_need_narrative_evidence():
+    narrative = "We turned the wrong way on taxiway Alpha and Tower had us continue to the ramp."
+    flags = grounding_flags(narrative, "The crew reported a runway incursion and a near miss.")
+    assert flags["events"] == ["near miss", "runway incursion"]
+    assert not grounding_flags(
+        "We entered the runway without a clearance; the other aircraft was very close.",
+        "The crew reported a runway incursion and a near miss.",
+    )["events"]
+
+
+def test_unsupported_event_class_in_synopsis_is_rejected():
+    narrative = "We turned the wrong way on the taxiway and Tower directed us back to the ramp."
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "Flight crew reported a runway incursion after a wrong turn on the taxiway.",
+        COLUMNS["factor"]: "Human Factors",
+    }
+    assert compose_gold(row, narrative) is None

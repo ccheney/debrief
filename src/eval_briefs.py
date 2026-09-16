@@ -9,8 +9,16 @@ import random
 import statistics
 import sys
 
-from src.common import DEFAULT_CONFIG, adapter_config, read_config, read_jsonl, sha256, write_json
-from src.schema import grounding_flags, parse_brief
+from src.common import (
+    DEFAULT_CONFIG,
+    adapter_config,
+    read_config,
+    read_jsonl,
+    sha256,
+    version_of,
+    write_json,
+)
+from src.schema import grounding_flags, parse_brief, words
 
 
 def score_output(row, text, token_count):
@@ -30,6 +38,9 @@ def score_output(row, text, token_count):
         "near_miss_gold": row.get("near_miss_gold", False),
         "near_miss_distinct": False,
         "recoverable_prediction": "invalid",
+        "lesson_gold": gold.lesson != "None stated.",
+        "lesson_present": False,
+        "lesson_grounded": False,
     }
     try:
         brief = parse_brief(text)
@@ -44,7 +55,14 @@ def score_output(row, text, token_count):
         recoverable_prediction=brief.recoverable,
         near_miss_distinct=brief.what_almost_happened
         not in ("None stated", "Unknown", brief.what_happened),
+        lesson_present=brief.lesson != "None stated.",
     )
+    if result["lesson_present"]:
+        # "No new facts" proxy: most content words of the lesson appear in the narrative.
+        content = words(brief.lesson)
+        result["lesson_grounded"] = (
+            len(content & words(row["narrative"])) / max(1, len(content)) >= 0.6
+        )
     return result
 
 
@@ -57,6 +75,8 @@ def aggregate(scores):
 
     known = [row for row in scores if row["recoverable_known"]]
     near = [row for row in scores if row["near_miss_gold"]]
+    lesson_gold = [row for row in scores if row["lesson_gold"]]
+    lesson_emitted = [row for row in scores if row["lesson_present"]]
     return {
         "n": len(scores),
         "valid_schema": mean("schema_valid"),
@@ -69,6 +89,10 @@ def aggregate(scores):
         "median_tokens": statistics.median(row["tokens"] for row in scores),
         "near_miss_distinct": mean("near_miss_distinct", near),
         "near_miss_n": len(near),
+        "lesson_recall": mean("lesson_present", lesson_gold),
+        "lesson_n": len(lesson_gold),
+        "lesson_emitted": mean("lesson_present"),
+        "lesson_grounded": mean("lesson_grounded", lesson_emitted),
         "recoverable_distribution": dict(Counter(row["recoverable_prediction"] for row in scores)),
         "recoverable_gold_distribution": dict(Counter(row["recoverable_gold"] for row in known)),
         "recoverable_known_distribution": dict(
@@ -119,8 +143,8 @@ def assert_disjoint(train, evaluation):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", default=DEFAULT_CONFIG)
-    parser.add_argument("--adapter", default="adapters/debrief-qwen3-8b-asrs-v01")
-    parser.add_argument("--output", default="eval_runs/v01")
+    parser.add_argument("--adapter", help="Default: adapter_dir from --config")
+    parser.add_argument("--output", help="Default: eval_runs/<version> from --config")
     parser.add_argument(
         "--limit", type=int, help="Smoke evaluation only; never a full acceptance result"
     )
@@ -128,9 +152,11 @@ def main():
     args = parser.parse_args()
     if args.limit is not None and args.limit <= 0:
         parser.error("--limit must be positive")
+    args.adapter = args.adapter or read_config(args.config)["adapter_dir"]
     config = (
         read_config(args.config) if args.predictions else adapter_config(args.adapter, args.config)
     )
+    args.output = args.output or f"eval_runs/{version_of(config)}"
     evaluation = read_jsonl(config["eval_file"])
     assert_disjoint(read_jsonl(config["train_file"]), evaluation)
     if args.limit:
@@ -204,6 +230,9 @@ def main():
         "grounding_fail",
         "median_tokens",
         "near_miss_distinct",
+        "lesson_recall",
+        "lesson_emitted",
+        "lesson_grounded",
     ):
 
         def fmt(value):
@@ -214,7 +243,8 @@ def main():
         )
     report += (
         f"\nRecovery scored on {metrics['adapter']['recoverable_known_n']} derivable rows; "
-        f"near-miss distinction scored on {metrics['adapter']['near_miss_n']} labeled rows.\n"
+        f"near-miss distinction scored on {metrics['adapter']['near_miss_n']} labeled rows; "
+        f"lesson recall on {metrics['adapter']['lesson_n']} rows with a gold lesson.\n"
     )
     report += f"\n**{result['gates']['decision']}**\n\n"
     report += "Grounding is a numbers/acronyms heuristic, not a semantic judge. The held-out source labels and recovery heuristic are noisy.\n"

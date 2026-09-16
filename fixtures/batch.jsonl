@@ -1,0 +1,3 @@
+{"id": "go_around", "narrative": "During final approach, the crosswind increased and we could not maintain a stable approach. We executed a go-around. We returned for another approach and landed safely. We should abandon an unstable approach."}
+{"id": "docker_oom", "narrative": "I deployed a Docker container with a memory limit of 512 MB. Under load it was killed for exceeding that limit. Requests failed until I rolled back the deployment. I had not checked memory use under load before deploying. We should measure memory use under load before setting the limit."}
+{"id": "ambiguous", "narrative": "Something went wrong last night. I do not know what caused it."}

@@ -23,3 +23,4 @@ unsloth_compiled_cache/
 # Review packets contain full held-out narratives; commit condensed review notes instead.
 eval_runs/*_rubric.md
 eval_runs/*_lessons.md
+!eval_runs/*_verification.json

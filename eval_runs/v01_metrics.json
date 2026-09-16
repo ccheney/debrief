@@ -1,0 +1,118 @@
+{
+  "config": {
+    "model_id": "unsloth/Qwen3-8B-unsloth-bnb-4bit",
+    "model_revision": "62efd7f9d748e394734a7adae2adf96e13a2abc8",
+    "dataset_id": "elihoole/asrs-aviation-reports",
+    "dataset_revision": "f1e681e92cddae20d01fc498d685f1cf6a052d34",
+    "dataset_split": "train",
+    "seed": 42,
+    "train_size": 4000,
+    "eval_size": 400,
+    "narrative_tokens": 1200,
+    "max_seq_length": 2048,
+    "lora_rank": 16,
+    "lora_alpha": 16,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 8,
+    "learning_rate": 0.0002,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.05,
+    "num_train_epochs": 2,
+    "train_file": "data/processed/train.jsonl",
+    "eval_file": "data/processed/eval.jsonl",
+    "output_dir": "checkpoints/asrs-v01",
+    "adapter_dir": "adapters/debrief-qwen3-8b-asrs-v01",
+    "temperature": 0.2,
+    "max_new_tokens": 400
+  },
+  "adapter_path": "adapters/debrief-qwen3-8b-asrs-v01",
+  "eval_sha256": "dd3120df538adc6f99b8aedcc5fa70220f77c52337e5975be9322400eba8be78",
+  "adapter_files_sha256": {
+    "adapter_config.json": "0f46097a74b503e421e51b8d37206370099e6a9b2b2bf7e48b56d3f29cc55c81",
+    "adapter_model.safetensors": "a67e4153a555af5f8ebe89cb51aad418ed6c4036e2bf537951fbf7c459f5b6d9"
+  },
+  "scorer_sha256": {
+    "/workspace/src/eval_briefs.py": "bd33a5119da08cd60a7f578717ccf58c76714d69d76edf089b2ef28019747445",
+    "src/schema.py": "d8dbbe7cb2ef513d1aa14471aa03b393ce5d5ba281fae7f03d3d096ee13c60e7",
+    "src/prompt.py": "62c834dee7f6200ff777f40c80e66e2ced922ea373fe08e7b6ff65c843718b60"
+  },
+  "smoke_only": false,
+  "metrics": {
+    "base": {
+      "n": 400,
+      "valid_schema": 0.565,
+      "factor_acc": 0.3275,
+      "phase_acc": 0.3225,
+      "recoverable_acc": 0.05,
+      "recoverable_known_acc": 0.5806451612903226,
+      "recoverable_known_n": 31,
+      "grounding_fail": 0.03,
+      "median_tokens": 171.0,
+      "near_miss_distinct": 0.2222222222222222,
+      "near_miss_n": 9,
+      "recoverable_distribution": {
+        "Yes": 224,
+        "invalid": 174,
+        "Unknown": 2
+      },
+      "recoverable_gold_distribution": {
+        "Yes": 28,
+        "No": 3
+      },
+      "recoverable_known_distribution": {
+        "invalid": 12,
+        "Yes": 19
+      }
+    },
+    "adapter": {
+      "n": 400,
+      "valid_schema": 1.0,
+      "factor_acc": 0.6975,
+      "phase_acc": 0.7675,
+      "recoverable_acc": 0.935,
+      "recoverable_known_acc": 0.22580645161290322,
+      "recoverable_known_n": 31,
+      "grounding_fail": 0.005,
+      "median_tokens": 59.0,
+      "near_miss_distinct": 0.5555555555555556,
+      "near_miss_n": 9,
+      "recoverable_distribution": {
+        "Unknown": 391,
+        "Yes": 9
+      },
+      "recoverable_gold_distribution": {
+        "Yes": 28,
+        "No": 3
+      },
+      "recoverable_known_distribution": {
+        "Unknown": 24,
+        "Yes": 7
+      }
+    }
+  },
+  "gates": {
+    "decision": "NOT ACCEPTED: one or more v0.1 targets were missed",
+    "checks": {
+      "schema_at_least_95_percent": true,
+      "schema_not_worse": true,
+      "factor_gain_15pp": true,
+      "phase_gain_10pp": true,
+      "grounding_at_most_10_percent": true,
+      "grounding_not_worse": true,
+      "recoverable_improves": false,
+      "recoverable_binary_support": true,
+      "recoverable_not_collapsed": false
+    }
+  },
+  "rubric_review": "pending",
+  "scoring_limitations": "Lexical specifics check misses semantic hallucinations; coded labels are noisy."
+}

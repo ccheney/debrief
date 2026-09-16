@@ -28,8 +28,9 @@ case "${1:-help}" in
     ;;
   launch)
     # Detached full experiment for the configured version: train, evaluate, demos.
+    # Train mode: Studio is stopped for the run and restarted by the launcher afterwards.
     [ -n "$VERSION" ] || { echo "No version in $CONFIG" >&2; exit 1; }
-    ssh "$SERVER" "cd '$REMOTE' && $DOCKER_RUN -d --name debrief-experiment-$VERSION briefcard:0.1 python -m src.run_experiment --config '$CONFIG'"
+    ssh "$SERVER" "cd '$REMOTE' && mkdir -p 'logs/$VERSION' && (nohup scripts/launch_remote.sh '$CONFIG' '$VERSION' > 'logs/$VERSION/launcher.log' 2>&1 &); sleep 8; docker ps -a --filter name=debrief-experiment-$VERSION --format '{{.Names}} {{.Status}}'"
     ;;
   logs)
     ssh "$SERVER" "docker logs --tail \"\${2:-40}\" debrief-experiment-$VERSION 2>&1; tail -c 600 '$REMOTE/logs/$VERSION/train.stderr.log' 2>/dev/null | tr '\r' '\n' | tail -3"

@@ -488,3 +488,128 @@ def test_prescriptive_sentence_is_not_a_near_miss_and_recommends_is_hypothetical
         )
         == []
     )
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        ("I stopped the preflight and we took him to a bathroom nearby.", "Unknown"),
+        (
+            "After ten seconds of it not starting; I stopped cranking; and waited 20 seconds.",
+            "Unknown",
+        ),
+        ("I stopped the aircraft immediately and the ops vehicle passed in front of us.", "Yes"),
+        ("I slammed on the brakes and the truck cleared the taxiway.", "Yes"),
+        ("I am not certain where we touched down and should have executed a go around.", "Unknown"),
+        (
+            "Suggest crosswind limits be placed on this MEL so as to preclude an aircraft hull loss.",
+            "Unknown",
+        ),
+        (
+            "The right engine cowling was missing and the horizontal stabilizer had likely been struck.",
+            "No",
+        ),
+    ],
+)
+def test_recovery_third_pass_regressions(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "should also be in our 10-7 pgs.",
+        "I called out 'altitude and that we should be at 10;000 feet still'.",
+        "My wheel pants suffered damage; but should be repairable.",
+        "And while in our base turn; we should not have received the AIRSPEED LOW warning.",
+        "The item should be able to move on that flight.",
+        "I should have done it then; but thought that I was following the correct procedures.",
+    ],
+)
+def test_more_narration_is_not_a_lesson(sentence):
+    from src.schema import extract_lesson
+
+    assert extract_lesson([sentence]) == "None stated."
+
+
+def test_glued_sentences_split_after_digits_and_percent():
+    from src.schema import sentences
+
+    assert sentences(
+        "I feel better but still not 100%.Suggestions: We need to forbid vapes on planes."
+    ) == [
+        "I feel better but still not 100%.",
+        "Suggestions: We need to forbid vapes on planes.",
+    ]
+    assert (
+        len(
+            sentences(
+                "Cross ZZZZZ at or above 3000 ft. should also be in our 10-7 pgs. Next time I will check."
+            )
+        )
+        == 2
+    )
+
+
+def test_filing_a_report_is_not_the_near_miss():
+    narrative = (
+        "The two aircraft came into conflict in the pattern; ours passed within 200 FT horizontally "
+        "and 0 FT vertically of the other. He felt that filing a NMAC was the best way to turn in the other pilot."
+    )
+    row = {
+        COLUMNS["synopsis"]: "Controller reported a conflict between two aircraft in the pattern.",
+        COLUMNS["factor"]: "Human Factors",
+    }
+    brief = compose_gold(row, narrative)
+    assert brief and brief.what_almost_happened.startswith("The two aircraft came into conflict")
+
+
+def test_header_roles_and_third_person_roles_become_reporter():
+    from src.schema import supported_synopsis
+
+    narrative = (
+        "I have seen several hover boards onboard; our policy is a concern after one board failed."
+    )
+    assert supported_synopsis(
+        "Air carrier Flight Attendant reported a policy concern after a hover board failed.",
+        narrative,
+    ) == ["Reporter reported a policy concern after a hover board failed."]
+    narrative = "I informed the new Captain that the Captain's lap belt part had failed and we were delayed."
+    assert supported_synopsis(
+        "The Captain reported an incorrect lap belt part that failed and delayed the flight.",
+        narrative,
+    ) == ["The reporter reported an incorrect lap belt part that failed and delayed the flight."]
+    narrative = "As Captain I decided the lap belt part had failed and we were delayed."
+    assert (
+        "Captain"
+        in supported_synopsis(
+            "The Captain reported an incorrect lap belt part that failed and delayed the flight.",
+            narrative,
+        )[0]
+    )
+
+
+def test_hedged_cause_is_not_supervised():
+    from src.schema import supported_synopsis
+
+    narrative = "We lost 3000 feet in turbulence. It's highly suspect that a high altitude windshear was the cause."
+    assert (
+        supported_synopsis(
+            "Flight crew reported turbulence and windshear causing a 3000 foot altitude loss.",
+            narrative,
+        )
+        == []
+    )
+    narrative = (
+        "We lost 3000 feet of altitude in severe turbulence; the altitude loss was rapid. "
+        "I believe the altitude loss was caused by the turbulence rather than the autopilot."
+    )
+    assert (
+        supported_synopsis(
+            "Flight crew reported severe turbulence causing a 3000 foot altitude loss.", narrative
+        )
+        == []
+    )
+    assert supported_synopsis(
+        "Flight crew reported severe turbulence and a 3000 foot altitude loss.", narrative
+    )

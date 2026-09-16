@@ -85,10 +85,16 @@ split procedure and hyperparameters are unchanged.
 - **Synopsis specifics.** Beyond B737-style type codes, named aircraft and
   descriptors the analyst adds from the report header ("King Air", "narrow body
   Airbus", "vintage military aircraft") are generalized to "aircraft" unless the
-  narrative names them. A stated cause ("due to fuel mismanagement") must have
-  most of its words attested or the sentence is rejected. Hedged narrator
-  statements promoted to fact by the analyst ("sounded like the gear horn")
-  remain a known, unfixed leak; the review records them.
+  narrative names them. Reporter roles the analyst takes from the report header
+  (Flight Attendant, Dispatcher, Instructor, Mechanic, …) become "reporter"
+  when the narrative never uses the word, and "Captain"/"First Officer" become
+  "reporter" when the narrator refers to that role in the third person ("my
+  Captain") without claiming it. A stated cause ("due to fuel mismanagement")
+  must have most of its words attested, and a cause whose words overlap a
+  hedged narrative sentence ("I believe the … was caused by") is rejected.
+  Reports whose narrator says they are not certain what happened are not
+  supervised at all. Softer hedges promoted to fact by the analyst ("sounded
+  like the gear horn") remain a known leak; the review records them.
 - **Event-class grounding.** Twenty-eight analyst event and condition classes ("near miss",
   "runway incursion", "loss of separation", "engine failure", "hard landing",
   "bird strike", "night", "icing", "crosswind", …) must have lexical evidence in the narrative. The check

@@ -146,10 +146,11 @@ class Brief:
 
 
 def sentences(text):
-    text = re.sub(r"(?<=[a-z])\.(?=[A-Z][a-z])", ". ", text)
+    text = re.sub(r"(?<=[a-z0-9%)])\.(?=[A-Z])", ". ", text)
     # "vs.", "ie.", "i.e.", "eg.", "e.g." and "approx." end abbreviations, not sentences.
     boundary = (
         r"(?<!\bvs\.)(?<!\bie\.)(?<!\bi\.e\.)(?<!\beg\.)(?<!\be\.g\.)(?<!\bapprox\.)"
+        r"(?<!\bpgs\.)(?<!\bpg\.)(?<!\bpara\.)(?<!\bref\.)(?<!\bMr\.)(?<!\bMrs\.)(?<!\bDr\.)"
         r"(?<=[.!?])\s+(?=[A-Z\[\"'])|\n+"
     )
     return [s.strip() for s in re.split(boundary, text, flags=re.I) if s.strip()]
@@ -237,7 +238,9 @@ NEGATION = re.compile(
     r"|rather than|instead of|suitable for|even though|had (?:we|I|they|he|she)"
     r"|remember\w*|recall\w*|last (?:year|summer|winter|spring|fall|month|week|time)|years? ago"
     r"|previous\w*|prior (?:event|incident|occasion|experience)|in the past"
-    r"|another crew|other crews?|one of our crews|similar (?:situation|event|incident))\b",
+    r"|another crew|other crews?|one of our crews|similar (?:situation|event|incident)"
+    r"|should have|might have|may have|likely|probably|possibly|apparently|perhaps"
+    r"|suggest\w*|recommend\w*|preclude\w*)\b",
     re.I,
 )
 # v0.2: patterns widened from the v0.1 gold review's recorded false negatives
@@ -250,7 +253,11 @@ COMPLETED = re.compile(
     r"|(?:aircraft|airplane|plane|wing ?tip|wing|tail|nose|gear|prop\w*|rotor|skid|helicopter|glider|we|I)"
     r" (?:\w+ ){0,3}?(?:struck|hit|contacted) the (?:ground(?! control)|terrain|runway surface)"
     r"|(?:struck|hit|clipped|scraped) (?:a |an |the |our )?(?:vehicle|truck|tug|tractor|light|sign|pole|fence"
-    r"|building|jet ?bridge|jetway|tree|power ?line|wire|(?:parked |another |other )?aircraft|airplane|hangar|cone|barrier)"
+    r"|building|jet ?bridge|jetway|tree|power ?line|wire|(?:parked |another |other )?aircraft|airplane|hangar|cone|barrier"
+    r"|horizontal stabilizer|stabilizer|elevator|rudder|fuselage|nacelle)"
+    r"|(?:cowl\w*|panel|door|fairing|window|windscreen|windshield|wheel pant|spinner|antenna|access door)"
+    r" (?:had )?(?:departed|separated|came off|was lost|blew off|flew off|detached|was missing|missing)"
+    r"|lost (?:a |the |an )?(?:cowl\w*|panel|fairing|windscreen|windshield|wheel pant|spinner|antenna)"
     r"|wing ?tip (?:struck|hit|contacted|clipped|scraped|dipped into|dragged)|prop(?:eller)? strike|tail strike|ground loop"
     r"|crashed|hull loss|off[- ](?:airport|field) landing|forced landing"
     r"|landed (?:in|on) (?:a |the )?(?:field|grass|pasture|highway|road|water|lake|river|beach|street)|ditched"
@@ -268,8 +275,9 @@ COMPLETED = re.compile(
 )
 SUCCESS = re.compile(
     r"\b(?:(?:I|we) (?:(?:then|immediately|successfully|safely|quickly|eventually|promptly|both) )?"
-    r"(?:stopped(?! (?:our |the |my |his |her |their )?(?:climb|descent|turn|checklist|conversation"
-    r"|discussion|talking|looking|counting|monitoring|briefing))|queried ATC|went (?:around|missed)|rejected|aborted"
+    r"(?:stopped(?=[.;!,]|$)|stopped (?:short|immediately|abruptly|in time|before|prior to|to avoid|well before|just short|well short"
+    r"|(?:the |our )?(?:aircraft|airplane|plane|push|pushback|tow|taxi) (?:short|immediately|abruptly|in time|before"
+    r"|to avoid|well before|just short|well short))|queried ATC|went (?:around|missed)|rejected|aborted"
     r"|(?:discontinued|broke off) (?:the |our )?(?:approach|takeoff|landing|departure)"
     r"|elected to (?:go around|go-around|reject|abort|return|divert|discontinue))"
     r"|(?:I|we) diverted(?! (?:my|our|his|her|their) attention)|diverted (?:to|back to|the (?:flight|aircraft))\b"
@@ -279,6 +287,7 @@ SUCCESS = re.compile(
     r"|(?:rejected|aborted|rejecting|aborting|discontinued|discontinuing) (?:the |our )?(?:takeoff|take-off|landing|approach|departure)"
     r"|(?:followed|complied with|responded to) (?:the )?(?:TCAS )?RA\b"
     r"|took evasive action|(?:able to )?avoid(?:ed)? (?:a |an |the )?(?:collision|conflict)"
+    r"|(?:slammed on|applied (?:maximum|max|hard|heavy|full)|got on) (?:the )?brak(?:es|ing)|braked hard|hard braking"
     r"|(?:averted|prevented) (?:a |an |the )?(?:collision|conflict|accident|incursion)|collision was avoided"
     r"|corrected (?:the |our |my |this )?(?:error|deviation|altitude|course|heading|mistake|situation)"
     r"|(?:regained|restored|reestablished|re-established) (?:aircraft |positive |radio |standard )?(?:control|separation|communication|contact)"
@@ -305,6 +314,7 @@ NEAR_MISS = re.compile(
     r"|(?:mid-?air|ground) collision|incident|accident|NMAC|near miss))"
     r"|came (?:very |too |extremely |dangerously )?close to"
     r"|narrowly (?:missed|avoided|averted)"
+    r"|within \d[\d;,]* ?(?:ft|feet|foot|meters|m|yards) (?:horizontally|vertically|laterally|of|from)"
     r"|evasive (?:action|maneuver))\b",
     re.I,
 )
@@ -336,6 +346,7 @@ LESSON_MODAL = re.compile(
 NOT_A_LESSON = re.compile(
     r"\b(?:told|said|stated|states|says|advised|instructed|informed|replied|asked|responded|answered"
     r"|agreed|decided|determined|concluded|conclusion|discussed|mentioned|suggested|recommended"
+    r"|called out|call out|yelled|shouted|announced|screamed|exclaimed"
     r"|requires?|required|where|than|what|how)\b.*?\b(?:should|must|need|ought|will|recommend|suggest)"
     r"|\b(?:would|could|might) (?:\w+ ){0,2}?(?:should|need to|have to)\b"
     r"|\b(?:do not|don't|did not|didn't) (?:\w+ ){0,1}?(?:feel|think|believe|see)\b"
@@ -343,7 +354,9 @@ NOT_A_LESSON = re.compile(
     r"|^Never (?:did|was|were|have|had|has)\b"
     r"|\bI should (?:also |just |probably )?(?:note|mention|add|point out|say|state|clarify|explain|emphasize|stress)\b"
     r"|\bshould have (?:had|shown|read|indicated|been (?:at|about|around|approximately|near|reading|showing"
-    r"|indicating|off|on|in|out|set|selected|closed|open|armed|engaged|extended|retracted|down|up))\b",
+    r"|indicating|off|on|in|out|set|selected|closed|open|armed|engaged|extended|retracted|down|up))\b"
+    r"|\bshould (?:not |never )?have (?:received|gotten|seen|heard|been given|done (?:it|that|this|so))\b"
+    r"|\bshould be (?:repairable|fixable|fine|ok|okay|noted|able to)\b",
     re.I,
 )
 # A near-miss statement describes; a sentence that prescribes is a lesson candidate.
@@ -368,6 +381,7 @@ def extract_lesson(parts, exclude=()):
         sentence = re.sub(r"\.\s*\d{1,2}\.$", ".", sentence)
         if (
             5 <= len(sentence.split()) <= 35
+            and re.match(r"[A-Z0-9\"'\[(]", sentence)
             and sentence.endswith(".")
             and "?" not in sentence
             and sentence not in exclude
@@ -548,13 +562,34 @@ AIRCRAFT_NAME = re.compile(
     r"|Sikorsky|Eurocopter|Dash ?8|Q400|Saab|Metroliner|Twin Otter|Super Cub|Piper Cub|Husky"
     r"|Decathlon|Citabria|Stearman|Hawker|Premier|Phenom|Sovereign|Kodiak|Islander|Twin Commander"
     r"|Aero Commander|Queen Air|Duke|Travel Air|Twin Bonanza|Lancair|Glasair|Kitfox|Fokker|Dornier"
-    r"|Hondajet|Bell \d{3}|Diamond DA-?\d+|TBM-?\d*|PC-?12|DC-?\d+|CJ\d|SR-?2[02]|DA-?\d{2}|RV-?\d{1,2})\b"
+    r"|Hondajet|Bell \d{3}|Diamond DA-?\d+|TBM-?\d*|PC-?12|DC-?\d+|CJ\d|SR-?2[02]|DA-?\d{2}|RV-?\d{1,2}"
+    r"|Aeronca|Champ|Luscombe|Taylorcraft|Ercoupe|Grumman|Maule|Bellanca|Beechjet|Sabreliner|Westwind|Astra"
+    r"|Falcon \d+|Cessna \d+|Skyhawk|Skylane|Stationair|Centurion|Cardinal|Cutlass|Conquest|Chancellor"
+    r"|Super King Air|Sundowner|Sierra|Musketeer|Skipper|Starship|Premier I)\b"
 )
 QUALIFIERS = (
     r"Light|Aerobatic|Corporate|Business|Small|Large|Heavy|Narrow[- ]body|Wide[- ]body|Vintage|Military"
     r"|Regional|Single[- ]engine|Twin[- ]engine|Multi[- ]engine|Turboprop|Piston|Commuter|Cargo|Experimental"
     r"|Homebuilt|Amateur[- ]built|Ultralight|Tailwheel|High[- ]performance|Antique|Warbird|Jet|Air taxi"
     r"|Fractional|Charter|Air carrier"
+)
+ROLES = (
+    "Captain",
+    "First Officer",
+    "Flight Attendant",
+    "Dispatcher",
+    "Instructor",
+    "Student",
+    "Mechanic",
+    "Technician",
+    "Ramp",
+    "Load planner",
+    "Controller",
+)
+HEDGE = re.compile(
+    r"\b(?:I (?:believe|think|suspect|feel|assume)|possibl[ey]|probabl[ey]|likely|may have|might have"
+    r"|apparently|seemed|appeared|perhaps|presumably)\b",
+    re.I,
 )
 CAUSAL = re.compile(
     r"\b(?:due to|because of|as a result of|caused by|resulting from|attributed to|as a consequence of)\b",
@@ -571,20 +606,51 @@ def supported_synopsis(synopsis, narrative):
 
     # Preserve uncertainty: do not supervise a confident synopsis from a narrator
     # who explicitly says they cannot establish what happened.
-    if re.search(r"\b(?:unsure|not sure|can.t be .*?sure|cannot be .*?sure)\b", narrative, re.I):
+    if re.search(
+        r"\b(?:unsure|not sure|can.t be .*?sure|cannot be .*?sure|not certain|uncertain|surmise"
+        r"|unable to determine|could not determine|cannot determine|unknown (?:cause|reason)"
+        r"|highly suspect|it is my belief|I am not sure|not positive)\b",
+        narrative,
+        re.I,
+    ):
         return []
+    # Content words of every hedged narrative sentence; a synopsis cause that
+    # overlaps them is the analyst promoting a guess to a fact.
+    hedge_words = set()
+    for candidate in sentences(narrative):
+        if HEDGE.search(candidate):
+            hedge_words |= words(candidate)
     for phrase in ("high altitude airport", "low altitude airport"):
         if phrase in synopsis.lower() and phrase not in narrative.lower():
             return []
-    for role in ("Captain", "First Officer"):
+    for role in ROLES:
         if not re.search(r"\b" + role + r"\b", narrative, re.I):
             synopsis = re.sub(r"\b" + role + r"\b", "reporter", synopsis, flags=re.I)
+        elif re.search(r"\b(?:the|my|our) " + role + r"\b", narrative, re.I) and not re.search(
+            r"\b(?:I was|I am|I'm|as|as the|being the|acting) "
+            + role
+            + r"\b|\b"
+            + role
+            + r" \(me\)|\bmyself\b",
+            narrative,
+            re.I,
+        ):
+            # The narrator refers to this role in the third person, so the analyst's
+            # attribution of the report to that role is not supported by the narrative.
+            synopsis = re.sub(
+                r"\b" + role + r"\b(?=[^.]{0,40}\breport)", "reporter", synopsis, flags=re.I
+            )
+    synopsis = re.sub(r"\breporter (?:pilot|personnel|crew)\b", "reporter", synopsis, flags=re.I)
     synopsis = AIRCRAFT_TYPE.sub(generalize, synopsis)
     synopsis = AIRCRAFT_NAME.sub(generalize, synopsis)
     for qualifier in QUALIFIERS.split("|"):
         if not re.search(r"\b" + qualifier + r"\b", narrative, re.I):
             synopsis = re.sub(
-                r"\b" + qualifier + r"(?=(?:\s+(?:" + QUALIFIERS + r"))*\s+aircraft\b)",
+                r"\b"
+                + qualifier
+                + r"(?=(?:\s+(?:"
+                + QUALIFIERS
+                + r"))*\s+(?:aircraft|airplane|plane|helicopter|pilot|jet|turboprop|piston|twin|glider|crew|reporter)\b)",
                 "",
                 synopsis,
                 flags=re.I,
@@ -603,6 +669,13 @@ def supported_synopsis(synopsis, narrative):
         cause_words = words(cause[1]) if len(cause) > 1 else set()
         # A stated cause is the claim most often invented; its own words must be attested.
         cause_supported = not cause_words or len(cause_words & source) / len(cause_words) >= 0.6
+        cause_terms = cause_words or (
+            content
+            if re.search(r"\b(?:caus\w*|result\w*|led to|because)\b", sentence, re.I)
+            else set()
+        )
+        if len(cause_terms & hedge_words) >= 2:
+            cause_supported = False
         if (
             not any(grounding_flags(narrative, sentence).values())
             and overlap >= 0.50
@@ -634,6 +707,7 @@ def compose_gold(row, narrative):
             and sentence != happened
             and len(sentence.split()) <= 60
             and not PRESCRIPTIVE.search(sentence)
+            and not re.search(r"\bfil(?:e|ed|ing)\b", sentence, re.I)
         ),
         "None stated",
     )

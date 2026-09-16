@@ -14,6 +14,14 @@ case "${1:-help}" in
       --exclude=.cache --exclude=logs --exclude=eval_runs --exclude=__pycache__ --exclude=.git \
       ./ "$SERVER:$REMOTE/"
     ;;
+  deploy)
+    # Cathedral has no GitHub key: push the current branch straight into its repo.
+    # Its repo is configured with receive.denyCurrentBranch=updateInstead, so a
+    # clean work tree there is updated to the pushed commit.
+    branch="$(git branch --show-current)"
+    git push "ssh://$SERVER$REMOTE" "HEAD:refs/heads/$branch"
+    ssh "$SERVER" "cd '$REMOTE' && git checkout -q -f '$branch' && git log --oneline -1 && git status --short"
+    ;;
   build)
     ssh "$SERVER" "cd '$REMOTE' && docker build -t briefcard:0.1 ."
     ;;
@@ -42,6 +50,6 @@ case "${1:-help}" in
     rsync -az "$SERVER:$REMOTE/logs/" logs/
     ;;
   *)
-    echo 'Usage: scripts/cathedral.sh {sync|build|status|run COMMAND...|launch|logs [N]|fetch}'
+    echo 'Usage: scripts/cathedral.sh {sync|deploy|build|status|run COMMAND...|launch|logs [N]|fetch}'
     ;;
 esac

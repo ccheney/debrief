@@ -29,7 +29,8 @@ virtual environment. Data preparation and scoring existing predictions work on
 macOS. Model training and inference require NVIDIA CUDA on Cathedral.
 
 ```sh
-scripts/cathedral.sh sync      # code and processed data to /home/ccheney/briefcard
+scripts/cathedral.sh deploy    # push the current commit into Cathedral's checkout (it has no GitHub key)
+scripts/cathedral.sh sync      # processed data (and any uncommitted code) to /home/ccheney/briefcard
 scripts/cathedral.sh build     # training image (only when requirements change)
 scripts/cathedral.sh run python -m src.train_unsloth --dry-run
 scripts/cathedral.sh run python -m src.verify_resume

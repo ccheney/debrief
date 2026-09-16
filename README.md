@@ -3,7 +3,7 @@
 Turn an incident narrative into a grounded, seven-section investigator brief.
 Debrief is a local Python CLI and a QLoRA adapter, trained on Cathedral's RTX 3080 Ti.
 
-**Current checkpoint:** `debrief-qwen3-8b-asrs-v02` (accepted for local experimental use)  
+**Current checkpoint:** `debrief-qwen3-8b-asrs-v03` (accepted for local experimental use)  
 **Base:** `unsloth/Qwen3-8B-unsloth-bnb-4bit`  
 **Pinned revision:** `62efd7f9d748e394734a7adae2adf96e13a2abc8`
 
@@ -12,9 +12,10 @@ Debrief is a local Python CLI and a QLoRA adapter, trained on Cathedral's RTX 30
 | Version | Gold rules | Outcome |
 |---|---|---|
 | `debrief-qwen3-8b-asrs-v01` | label map 3 | Trained 2026-09-15. **Not accepted.** Seven of nine automatic gates pass (schema 100%, factor +37 pp, phase +44 pp, grounding better than base) but the adapter never emits a lesson and answers Unknown recovery on 391 of 400 rows, because those fields were empty in 92–98% of its gold. See [v0.1 results](docs/v01-results.md). |
+| `debrief-qwen3-8b-asrs-v03` | label map 4 plus synopsis checks | Trained 2026-09-16. **All nine gates pass.** Recovery improves most: the gap over base goes from +8 to +23 points and completed-event recall from 30% to 56%. Grounding is unchanged within sampling noise; overstatement of event classes is the dominant remaining error. The role artifact is gone. See [v0.3 results](docs/v03-results.md). |
 | `debrief-qwen3-8b-asrs-v02` | label map 4 | Trained 2026-09-16. **All nine automatic gates pass**: schema 100%, factor +41 pp, phase +47 pp, recovery improves without collapse, grounding better than base under the stricter event-class check. Emits verbatim, grounded lessons on 18% of rows (recall 61%), recovery with evidence on 19%. Rubric: 16 of 20 random briefs clean. See [v0.2 results](docs/v02-results.md). |
 
-v0.2 is accepted for **local experimental use** under PRD Phase 4 ("ship locally if P0 metrics beat base and grounding is not worse"). It is an agent review, not a human sign-off; the adapter stays private and is not for operational decisions.
+v0.3 is the current checkpoint, accepted for **local experimental use** under PRD Phase 4 ("ship locally if P0 metrics beat base and grounding is not worse"). It is an agent review, not a human sign-off; the adapter stays private and is not for operational decisions.
 
 ## Quick start
 

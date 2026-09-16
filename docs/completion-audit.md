@@ -15,19 +15,27 @@ ran from training commit `ca46d59`; v0.2 runs from the commit recorded in its
 | No training data in git beyond ten-row sample | Git ignores raw/full processed data and weights; only `data/processed/sample.jsonl` is tracked. |
 | Isolated GPU dependencies, pinned base, 12 GB | Dedicated Docker image; verified NVIDIA 3080 Ti, Unsloth, bf16 and model reload. Exact dependencies in `requirements-gpu.lock.txt`. |
 | 50-step dry run; checkpoint write/reload | Completed: `eval_runs/dry_run_meta.json`, 321.8 seconds, peak reserved 8.74 GiB. Dry adapter reload produced parseable fixture JSON. |
-| Full 4k × 2 epochs within six hours | v0.1: 1,000 steps in 5,679 s, 9.34 GiB. v0.2: 1,056 steps in 5,998 s, 8.74 GiB (`eval_runs/asrs-v02_meta.json`). |
+| Full 4k × 2 epochs within six hours | v0.1: 1,000 steps / 5,679 s / 9.34 GiB. v0.2: 1,056 / 5,998 s / 8.74 GiB. v0.3: 1,180 / 6,733 s / 8.39 GiB. |
 | Resume from checkpoint | CPU tests cover incomplete saves, changed data/config and subset mismatch. GPU restart check passed 2026-09-15 on the v0.2 data: `docs/resume-verification.md`. |
 | Loss/LR/time/VRAM/git/model provenance | Recorded per run in `eval_runs/<run>_meta.json` and `<run>_loss.csv`. Training-time eval loss is a training-set probe. |
-| Base versus adapter on all 400 reports | v0.1: `eval_runs/v01.md`. v0.2: `eval_runs/v02.md`, `v02_metrics.json`; all nine gates pass. |
-| Validity ≥95%, factor +15 pp, phase +10 pp | v0.1: 1.00, +37, +44. v0.2: 1.00, +41, +47. |
-| Grounding ≤10% and no worse than base | v0.1: 0.5% vs 3.0% (numbers/acronyms). v0.2: 3.3% vs 6.2% with event classes included; rubric 16 of 20 random rows clean. |
-| Recovery improves without collapsing | v0.1 failed both. v0.2: 0.51 vs 0.43 on 109 rows, Yes 52 / No 8 predicted; conservative on completed events. |
-| Near-miss distinction, one-sentence lesson, length | v0.2: 0.55 on 11 rows (target 0.80 not met); lessons verbatim and grounded (71 emitted, recall 0.61); median 64 tokens. |
-| Rubric: 20 random outputs plus failure clusters | v0.1 in `docs/v01-results.md`; v0.2 in `docs/v02-results.md` (30 rows). |
+| Base versus adapter on all 400 reports | v0.1: `eval_runs/v01.md`. v0.2 and v0.3: `eval_runs/v0{2,3}.md`; all nine gates pass in both. |
+| Validity ≥95%, factor +15 pp, phase +10 pp | v0.1: 1.00, +37, +44. v0.2: 1.00, +41, +47. v0.3: 1.00, +39, +46. |
+| Grounding ≤10% and no worse than base | v0.1: 0.5% vs 3.0% (numbers/acronyms). v0.2: 3.3% vs 6.2% with event classes. v0.3: 2.5% vs 4.5% with designators added; rubric 12 of 20 random rows clean, unchanged within sampling noise. |
+| Recovery improves without collapsing | v0.1 failed both. v0.2: 0.51 vs 0.43 on 109 rows. v0.3: 0.58 vs 0.36 on 110 rows, completed-event recall 30% → 56% after oversampling. |
+| Near-miss distinction, one-sentence lesson, length | v0.3: 0.64 on 14 rows (target 0.80 not met); lessons verbatim and grounded (69 emitted, recall 0.57); median 65 tokens. |
+| Rubric: 20 random outputs plus failure clusters | v0.1, v0.2 and v0.3 recorded in their results docs; v0.3 covers 29 rows. |
 | Adapter model card and reload | v0.1 and v0.2 adapters reload; cards written at save time; v0.2 demos and evaluation ran from the saved adapter. |
 | Text, JSON, batch inference | Text/JSON verified on v0.1 demos. Batch verified 2026-09-15 with the v0.1 adapter on `fixtures/batch.jsonl`: three valid briefs, exit 0, 30 s including model load. |
-| Three unseen examples (aviation, ops, ambiguous) | v0.2: go-around and Docker fixtures return their lessons, the ambiguous one-liner answers Unknown throughout (`docs/v02-results.md`). |
+| Three unseen examples (aviation, ops, ambiguous) | v0.3: both fixtures return their lessons, the go-around now gets Weather matching gold, the ambiguous one-liner answers Unknown throughout. |
 | Unsloth Studio on Cathedral with hostname | Live at `http://unsloth.cathedral.home.arpa`; password persistence across container replacement verified. |
+
+## Decision after v0.3
+
+All nine gates pass again. Recovery, the field that failed v0.1 and was weakest
+in v0.2, improves from +8 to +23 points over base. Grounding is unchanged within
+sampling noise and event-class overstatement is now the dominant error. **Ship
+locally** as the current experimental adapter; the near-miss should-hit target
+is still unmet and this remains an agent review, not a human sign-off.
 
 ## Decision after v0.2
 

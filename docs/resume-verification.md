@@ -29,6 +29,18 @@ The verifier requires:
 - Adapter tensors actually change after the resumed update.
 
 Results are written to `eval_runs/debrief-qwen3-8b-resume-check_verification.json`.
-A passing result has not yet been claimed; the GPU exercise is pending main-job
-completion. CPU regression tests cover incomplete checkpoints, changed data or
-model, dry/full subset mismatch and accidental checkpoint overwrite.
+
+## Result (2026-09-15, v0.2 data)
+
+Passed on Cathedral's 3080 Ti in 87 seconds with Studio paused:
+
+- First attempt paused at global step 1; no adapter was published.
+- Resumed attempt loaded `checkpoint-1`, performed exactly one optimizer step,
+  and finished at global step 2 (`optimizer_steps: [[1], [2]]`).
+- 504 of 504 adapter tensors changed after the resumed update.
+- Training data hash `4d941b3e…36954` matches the v0.2 `train.jsonl`.
+
+Records: `eval_runs/debrief-qwen3-8b-resume-check_{pause,resume}_meta.json` and
+`eval_runs/debrief-qwen3-8b-resume-check_verification.json`. CPU regression tests
+cover incomplete checkpoints, changed data or model, dry/full subset mismatch and
+accidental checkpoint overwrite.

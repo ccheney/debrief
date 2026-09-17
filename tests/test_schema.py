@@ -112,7 +112,12 @@ def test_invalid_schema(mutator):
 
 def test_grounding():
     flags = grounding_flags("SNA at 1,000 feet.", "SNA at 1000 feet; B737 at 2500 feet near LAX.")
-    assert flags == {"numbers": ["2500"], "acronyms": ["B737", "LAX"]}
+    assert flags == {
+        "numbers": ["2500"],
+        "acronyms": ["B737", "LAX"],
+        "events": [],
+        "designators": [],
+    }
     assert not any(
         grounding_flags(
             "Tower gave a clearance.",
@@ -182,7 +187,7 @@ def test_recovery_intervention_variants(narrative, expected):
     ("text", "label"),
     [
         ("The tractor was on a collision course with the aircraft.", "Unknown"),
-        ("I was able to avoid a collision using heavy braking.", "Unknown"),
+        ("I was able to avoid a collision using heavy braking.", "Yes"),
         ("The landing gear collapsed during the landing roll.", "No"),
     ],
 )
@@ -217,3 +222,490 @@ def test_unknown_heading_cannot_hide_inside_an_expected_section():
     text = Brief("We stopped.\nUnrequested heading:\nA second statement.").render()
     with pytest.raises(ValueError):
         parse_brief(text)
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        ("I stopped before the hold short line.", "Yes"),
+        ("I performed a low speed reject and taxied clear.", "Yes"),
+        ("We were rejecting the takeoff when Tower called.", "Yes"),
+        ("We went missed and later flew a successful approach.", "Yes"),
+        ("We returned to the departure airport and landed uneventfully.", "Yes"),
+        ("The flight attendant was injured when we braked.", "No"),
+        ("There were no injuries and no damage to the aircraft.", "Unknown"),
+        ("The aircraft departed the runway into the grass.", "No"),
+        ("We made an off-field landing in a pasture.", "No"),
+        ("The wingtip struck the jet bridge during pushback.", "No"),
+        ("I contacted ground control and we taxied to the gate.", "Unknown"),
+        ("I must have missed the call.", "Unknown"),
+    ],
+)
+def test_recovery_v02_patterns(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+def test_completed_event_still_wins_over_later_recovery():
+    label, evidence = derive_recoverable(
+        "We went around. On the second approach the gear collapsed on touchdown."
+    )
+    assert label == "No" and "collapsed" in evidence
+
+
+@pytest.mark.parametrize(
+    ("sentence", "is_lesson"),
+    [
+        ("All aircraft should comply promptly to ATC instructions and advise if unable.", True),
+        (
+            "I should have delayed the after landing checklist until confirming the taxi route.",
+            True,
+        ),
+        ("Controllers should work to clarify the terminology used for PIREPs.", True),
+        ("In the future I will brief the hot spots before every taxi.", True),
+        ("Don't allow flight attendants to serve while waiting on a runway.", True),
+        ("The taxiway closures should be depicted graphically on the chart.", True),
+        ("Tower told us we should hold short of the runway.", False),
+        ("I must have missed the frequency change during the descent.", False),
+        ("This should never have happened to an experienced crew.", False),
+        ("We landed and taxied to the gate without further incident.", False),
+        ("Should we have gone around at that point?", False),
+        ("Lesson learned.", False),
+    ],
+)
+def test_lesson_extraction(sentence, is_lesson):
+    from src.schema import extract_lesson
+
+    parts = ["We were cleared for takeoff on runway one.", sentence]
+    assert (extract_lesson(parts) == sentence) is is_lesson
+
+
+def test_lesson_prefers_last_recommendation_and_skips_reported_speech():
+    from src.schema import extract_lesson
+
+    parts = [
+        "We should have stopped earlier.",
+        "The controller said we should call the tower.",
+        "Crews must confirm the taxi route before moving.",
+    ]
+    assert extract_lesson(parts) == "Crews must confirm the taxi route before moving."
+
+
+@pytest.mark.parametrize(
+    ("sentence", "is_near_miss"),
+    [
+        ("We came very close to the departing traffic.", True),
+        ("It could have resulted in a midair.", True),
+        ("This was a close call with a fuel truck.", True),
+        ("We took evasive action to stay clear of the helicopter.", True),
+        ("We could have hit the tug.", True),
+        ("We almost forgot the checklist.", False),
+        ("The weather was nearly VFR by the time we landed.", False),
+        ("We landed without incident.", False),
+    ],
+)
+def test_near_miss_patterns(sentence, is_near_miss):
+    from src.schema import NEAR_MISS
+
+    assert bool(NEAR_MISS.search(sentence)) is is_near_miss
+
+
+def test_event_class_claims_need_narrative_evidence():
+    narrative = "We turned the wrong way on taxiway Alpha and Tower had us continue to the ramp."
+    flags = grounding_flags(narrative, "The crew reported a runway incursion and a near miss.")
+    assert flags["events"] == ["near miss", "runway incursion"]
+    assert not grounding_flags(
+        "We entered the runway without a clearance; the other aircraft was very close.",
+        "The crew reported a runway incursion and a near miss.",
+    )["events"]
+
+
+def test_unsupported_event_class_in_synopsis_is_rejected():
+    narrative = "We turned the wrong way on the taxiway and Tower directed us back to the ramp."
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "Flight crew reported a runway incursion after a wrong turn on the taxiway.",
+        COLUMNS["factor"]: "Human Factors",
+    }
+    assert compose_gold(row, narrative) is None
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        (
+            "We never got a warning even though had we stopped our turn we would have hit terrain.",
+            "Unknown",
+        ),
+        ("During climbout we stopped our climb due to electrical malfunctions.", "Unknown"),
+        (
+            "I applied maximum braking to avoid a collision with the vehicle and it swerved into the grass.",
+            "Yes",
+        ),
+        ("The airplane went into the grass beside the runway.", "No"),
+        (
+            "Remembering the close call another crew had last summer; I elected to land with manual thrust.",
+            "Unknown",
+        ),
+        ("We stopped short of the hold line.", "Yes"),
+    ],
+)
+def test_recovery_review_regressions(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+def test_recollected_near_miss_is_not_this_incident():
+    from src.schema import NEAR_MISS, unnegated_match
+
+    assert (
+        unnegated_match(
+            NEAR_MISS,
+            "Remembering the close call one of our crews had last summer; I elected to land.",
+        )
+        is None
+    )
+    assert unnegated_match(NEAR_MISS, "We had a close call with a fuel truck.") is not None
+
+
+def test_i_should_note_is_narration():
+    from src.schema import extract_lesson
+
+    assert (
+        extract_lesson(
+            ["I should note; at no time did we have any indication of smoke on the flight deck."]
+        )
+        == "None stated."
+    )
+
+
+def test_abbreviations_do_not_end_sentences():
+    from src.schema import sentences
+
+    assert sentences("Revise the restriction to 12000 vs. 10000 feet. Then we landed.") == [
+        "Revise the restriction to 12000 vs. 10000 feet.",
+        "Then we landed.",
+    ]
+    assert len(sentences("Avoid crossing restrictions ie. Those with potential for conflict.")) == 1
+    assert len(sentences("We stopped. We waited. We went.")) == 3
+
+
+def test_engine_shutdown_is_not_engine_failure_evidence():
+    narrative = "The reverser light came on with a slight engine rollback and we shut the engine down per the QRH."
+    assert grounding_flags(narrative, "The crew reported an engine failure.")["events"] == [
+        "engine failure"
+    ]
+    assert not grounding_flags(
+        "The engine quit at 500 feet.", "The crew reported an engine failure."
+    )["events"]
+
+
+def test_named_aircraft_and_descriptors_generalized_when_unattested():
+    narrative = "We feathered the propellers and the left brake failed during taxi; the prop struck a taxi light."
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "The pilot of a King Air aircraft reported a left brake failure during taxi.",
+        COLUMNS["factor"]: "Aircraft",
+    }
+    brief = compose_gold(row, narrative)
+    assert brief and "King Air" not in brief.what_happened and "an aircraft" in brief.what_happened
+    row = {
+        COLUMNS["synopsis"]: "Narrow body Airbus flight crew reported a roll upset during climb.",
+        COLUMNS["factor"]: "Aircraft",
+    }
+    brief = compose_gold(
+        row,
+        "During climb the aircraft rolled sharply and the side stick felt loose; the remainder of the flight was uneventful.",
+    )
+    assert brief and "Airbus" not in brief.what_happened and "Narrow" not in brief.what_happened
+
+
+def test_unattested_night_and_cause_are_rejected():
+    narrative = "On the visual approach the EGPWS called terrain and we climbed to the MSA before continuing."
+    assert grounding_flags(
+        narrative, "The crew reported a terrain warning on a night visual approach."
+    )["events"] == ["night"]
+    narrative = "After about two hours the engine began to die and I made a forced landing in a field; I had planned 19 gallons."
+    row = {
+        COLUMNS["synopsis"]: "Pilot reported a loss of engine power due to fuel mismanagement.",
+        COLUMNS["factor"]: "Human Factors",
+    }
+    assert compose_gold(row, narrative) is None
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "Pilot reported a loss of engine power and a forced landing in a field.",
+        COLUMNS["factor"]: "Human Factors",
+    }
+    assert compose_gold(row, narrative) is not None
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        ("We overran the runway and the nose wheel was sheared off.", "No"),
+        (
+            "I was able to recover the aircraft before the wing tip struck the ground. The remainder of the flight was uneventful.",
+            "Yes",
+        ),
+    ],
+)
+def test_overrun_and_recovered_before_contact(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "By now I should have had 2600 RPM but still had slightly less than 2500.",
+        "If the checklist was followed properly; both the fuel switches and the fire switches should have been off.",
+    ],
+)
+def test_expected_state_narration_is_not_a_lesson(sentence):
+    from src.schema import extract_lesson
+
+    assert extract_lesson([sentence]) == "None stated."
+
+
+def test_prescriptive_sentence_is_not_a_near_miss_and_recommends_is_hypothetical():
+    narrative = (
+        "We crossed STUBL at 320 knots after a misunderstanding with ATC. "
+        "Procedures - Don't build crossing restrictions that have potential for conflict ie. speed and altitude together."
+    )
+    row = {
+        COLUMNS[
+            "synopsis"
+        ]: "Flight crew reported a speed deviation on the arrival after a misunderstanding with ATC.",
+        COLUMNS["factor"]: "Procedure",
+    }
+    brief = compose_gold(row, narrative)
+    assert (
+        brief
+        and brief.what_almost_happened == "None stated"
+        and brief.lesson.startswith("Don't build crossing restrictions")
+    )
+    from src.schema import supported_synopsis
+
+    assert (
+        supported_synopsis(
+            "A Maintenance Controller recommends that APU compartments be checked after a failed start.",
+            "The APU failed to start and the compartment was checked later.",
+        )
+        == []
+    )
+
+
+@pytest.mark.parametrize(
+    ("narrative", "expected"),
+    [
+        ("I stopped the preflight and we took him to a bathroom nearby.", "Unknown"),
+        (
+            "After ten seconds of it not starting; I stopped cranking; and waited 20 seconds.",
+            "Unknown",
+        ),
+        ("I stopped the aircraft immediately and the ops vehicle passed in front of us.", "Yes"),
+        ("I slammed on the brakes and the truck cleared the taxiway.", "Yes"),
+        ("I am not certain where we touched down and should have executed a go around.", "Unknown"),
+        (
+            "Suggest crosswind limits be placed on this MEL so as to preclude an aircraft hull loss.",
+            "Unknown",
+        ),
+        (
+            "The right engine cowling was missing and the horizontal stabilizer had likely been struck.",
+            "No",
+        ),
+    ],
+)
+def test_recovery_third_pass_regressions(narrative, expected):
+    assert derive_recoverable(narrative)[0] == expected
+
+
+@pytest.mark.parametrize(
+    "sentence",
+    [
+        "should also be in our 10-7 pgs.",
+        "I called out 'altitude and that we should be at 10;000 feet still'.",
+        "My wheel pants suffered damage; but should be repairable.",
+        "And while in our base turn; we should not have received the AIRSPEED LOW warning.",
+        "The item should be able to move on that flight.",
+        "I should have done it then; but thought that I was following the correct procedures.",
+    ],
+)
+def test_more_narration_is_not_a_lesson(sentence):
+    from src.schema import extract_lesson
+
+    assert extract_lesson([sentence]) == "None stated."
+
+
+def test_glued_sentences_split_after_digits_and_percent():
+    from src.schema import sentences
+
+    assert sentences(
+        "I feel better but still not 100%.Suggestions: We need to forbid vapes on planes."
+    ) == [
+        "I feel better but still not 100%.",
+        "Suggestions: We need to forbid vapes on planes.",
+    ]
+    assert (
+        len(
+            sentences(
+                "Cross ZZZZZ at or above 3000 ft. should also be in our 10-7 pgs. Next time I will check."
+            )
+        )
+        == 2
+    )
+
+
+def test_filing_a_report_is_not_the_near_miss():
+    narrative = (
+        "The two aircraft came into conflict in the pattern; ours passed within 200 FT horizontally "
+        "and 0 FT vertically of the other. He felt that filing a NMAC was the best way to turn in the other pilot."
+    )
+    row = {
+        COLUMNS["synopsis"]: "Controller reported a conflict between two aircraft in the pattern.",
+        COLUMNS["factor"]: "Human Factors",
+    }
+    brief = compose_gold(row, narrative)
+    assert brief and brief.what_almost_happened.startswith("The two aircraft came into conflict")
+
+
+def test_header_roles_and_third_person_roles_become_reporter():
+    from src.schema import supported_synopsis
+
+    narrative = (
+        "I have seen several hover boards onboard; our policy is a concern after one board failed."
+    )
+    assert supported_synopsis(
+        "Air carrier Flight Attendant reported a policy concern after a hover board failed.",
+        narrative,
+    ) == ["Reporter reported a policy concern after a hover board failed."]
+    narrative = "I informed the new Captain that the Captain's lap belt part had failed and we were delayed."
+    assert supported_synopsis(
+        "The Captain reported an incorrect lap belt part that failed and delayed the flight.",
+        narrative,
+    ) == ["The reporter reported an incorrect lap belt part that failed and delayed the flight."]
+    narrative = "As Captain I decided the lap belt part had failed and we were delayed."
+    assert (
+        "Captain"
+        in supported_synopsis(
+            "The Captain reported an incorrect lap belt part that failed and delayed the flight.",
+            narrative,
+        )[0]
+    )
+
+
+def test_hedged_cause_is_not_supervised():
+    from src.schema import supported_synopsis
+
+    narrative = "We lost 3000 feet in turbulence. It's highly suspect that a high altitude windshear was the cause."
+    assert (
+        supported_synopsis(
+            "Flight crew reported turbulence and windshear causing a 3000 foot altitude loss.",
+            narrative,
+        )
+        == []
+    )
+    narrative = (
+        "We lost 3000 feet of altitude in severe turbulence; the altitude loss was rapid. "
+        "I believe the altitude loss was caused by the turbulence rather than the autopilot."
+    )
+    assert (
+        supported_synopsis(
+            "Flight crew reported severe turbulence causing a 3000 foot altitude loss.", narrative
+        )
+        == []
+    )
+    assert supported_synopsis(
+        "Flight crew reported severe turbulence and a 3000 foot altitude loss.", narrative
+    )
+
+
+def test_role_modifier_goes_with_an_unsupported_role():
+    from src.schema import supported_synopsis
+
+    narrative = "I was working Local by myself. An aircraft was cleared to cross the runway and separation was lost."
+    assert supported_synopsis(
+        "Tower Controller reported a loss of separation when an aircraft was cleared to cross the runway.",
+        narrative,
+    ) == [
+        "Reporter reported a loss of separation when an aircraft was cleared to cross the runway."
+    ]
+    narrative = "The engine cowling latch was left unlatched and the panel departed in flight."
+    assert supported_synopsis(
+        "Air carrier Maintenance Technician reported an engine cowling latch was left unlatched and the panel departed.",
+        narrative,
+    ) == ["Reporter reported an engine cowling latch was left unlatched and the panel departed."]
+    narrative = "As Captain I saw the engine quit during climb; the engine failure was obvious."
+    assert (
+        "The Captain reported"
+        in supported_synopsis(
+            "The Captain reported an engine failure during climb after the engine quit.", narrative
+        )[0]
+    )
+
+
+@pytest.mark.parametrize(
+    ("sentence", "is_near_miss"),
+    [
+        ("We brought our plane to a stop just prior to colliding with the other aircraft.", True),
+        ("I turned right to avoid the other aircraft.", True),
+        ("The other aircraft passed below us by about 400 FT.", True),
+        ("The traffic passed off our nose at 200 feet.", True),
+        ("We stopped prior to the hold short line.", False),
+        ("We taxied behind the other aircraft at the gate.", False),
+        ("We passed over the fix at 5000 feet.", False),
+    ],
+)
+def test_near_miss_v03_patterns(sentence, is_near_miss):
+    from src.schema import NEAR_MISS, unnegated_match
+
+    assert bool(unnegated_match(NEAR_MISS, sentence)) is is_near_miss
+
+
+def test_third_person_role_detected_without_an_article():
+    from src.schema import supported_synopsis
+
+    third = (
+        "Captain (Pilot Flying) turned off the autopilot; Captain feels the issue was due to him being new. "
+        "We had an altitude deviation after multiple confusing clearances from ATC."
+    )
+    first = "As Captain I turned off the autopilot. We had an altitude deviation after multiple confusing clearances from ATC."
+    syn = "Captain reported an altitude deviation after multiple confusing clearances from ATC."
+    assert supported_synopsis(syn, third)[0].startswith("Reporter reported")
+    assert supported_synopsis(syn, first)[0].startswith("Captain reported")
+
+
+def test_event_word_only_ever_hedged_is_not_asserted():
+    from src.schema import supported_synopsis
+
+    hedged = "The engine cowling separated during the climb. The horizontal stabilizer had likely been struck at the time."
+    plain = "The engine cowling separated during the climb and struck the horizontal stabilizer."
+    syn = "The engine cowling separated and struck the horizontal stabilizer during the climb."
+    assert supported_synopsis(syn, hedged) == []
+    assert supported_synopsis(syn, plain)
+
+
+def test_named_designator_must_appear_in_the_narrative():
+    narrative = "We were passing intersection A5 on the runway when the conflict occurred."
+    assert grounding_flags(narrative, "The crew reported a conflict from Taxiway D to Taxiway A5.")[
+        "designators"
+    ] == ["Taxiway D"]
+    assert not grounding_flags(
+        "We turned onto Taxiway D from Runway 26R.",
+        "The crew turned onto Taxiway D from Runway 26R.",
+    )["designators"]
+    assert not grounding_flags(
+        "We were cleared to land on Runway XXR and exited at 1.",
+        "The crew landed on Runway XXR and exited at Taxiway 1.",
+    )["designators"]
+
+
+def test_analyst_size_descriptor_is_generalized():
+    from src.schema import supported_synopsis
+
+    narrative = "We found the forward and aft crew oxygen compartments sealed and there was a conflict over the compartments."
+    out = supported_synopsis(
+        "Flight crew reported a conflict over sealed crew oxygen compartments on their large transport aircraft.",
+        narrative,
+    )
+    assert out and "large transport" not in out[0]

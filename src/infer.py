@@ -14,7 +14,7 @@ def main():
     parser.add_argument(
         "--config", help="Default: saved adapter configuration, or project config for --base"
     )
-    parser.add_argument("--adapter", default="adapters/debrief-qwen3-8b-asrs-v01")
+    parser.add_argument("--adapter", help="Default: adapter_dir from the project config")
     parser.add_argument("--base", action="store_true", help="Run the untuned baseline")
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--file", type=Path)
@@ -23,6 +23,7 @@ def main():
     source.add_argument("--stdin", action="store_true")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args()
+    args.adapter = args.adapter or read_config(args.config or DEFAULT_CONFIG)["adapter_dir"]
     if not args.base and not Path(args.adapter, "adapter_config.json").exists():
         parser.error(f"Adapter not found: {args.adapter}; train first or use --base")
     rows = (

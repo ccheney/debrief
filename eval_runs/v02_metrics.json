@@ -1,0 +1,133 @@
+{
+  "config": {
+    "version": "v02",
+    "model_id": "unsloth/Qwen3-8B-unsloth-bnb-4bit",
+    "model_revision": "62efd7f9d748e394734a7adae2adf96e13a2abc8",
+    "dataset_id": "elihoole/asrs-aviation-reports",
+    "dataset_revision": "f1e681e92cddae20d01fc498d685f1cf6a052d34",
+    "dataset_split": "train",
+    "seed": 42,
+    "train_size": 4000,
+    "eval_size": 400,
+    "oversample_near_miss": 3,
+    "narrative_tokens": 1200,
+    "max_seq_length": 2048,
+    "lora_rank": 16,
+    "lora_alpha": 16,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "per_device_train_batch_size": 1,
+    "gradient_accumulation_steps": 8,
+    "learning_rate": 0.0002,
+    "lr_scheduler_type": "cosine",
+    "warmup_ratio": 0.05,
+    "num_train_epochs": 2,
+    "train_file": "data/processed/train.jsonl",
+    "eval_file": "data/processed/eval.jsonl",
+    "output_dir": "checkpoints/asrs-v02",
+    "adapter_dir": "adapters/debrief-qwen3-8b-asrs-v02",
+    "temperature": 0.2,
+    "max_new_tokens": 400
+  },
+  "adapter_path": "adapters/debrief-qwen3-8b-asrs-v02",
+  "eval_sha256": "7e7c032d712af9afee6945ac082cdb04fee8bc7b3915b0d33649b68aafe1390c",
+  "adapter_files_sha256": {
+    "adapter_config.json": "47af4fb3b45761b9015bc4847acfb9ed8f6d75c812a0e3e718a4467e73c7f1e2",
+    "adapter_model.safetensors": "2d4895ee0f6a1e5b0784f1752f943b72995f3ad29abc979719a110fc547fdcf0"
+  },
+  "scorer_sha256": {
+    "/workspace/src/eval_briefs.py": "84928d468e6301bca406b5e953a67af4cb3631db8cd8bff0a73eadaa4f7395d0",
+    "src/schema.py": "c3df8ff378a2110a7949ab9f63236e93b82d66d6a35dbf903080b7e7b1bd888e",
+    "src/prompt.py": "62c834dee7f6200ff777f40c80e66e2ced922ea373fe08e7b6ff65c843718b60"
+  },
+  "smoke_only": false,
+  "metrics": {
+    "base": {
+      "n": 400,
+      "valid_schema": 0.55,
+      "factor_acc": 0.32,
+      "phase_acc": 0.34,
+      "recoverable_acc": 0.1175,
+      "recoverable_known_acc": 0.43119266055045874,
+      "recoverable_known_n": 109,
+      "grounding_fail": 0.0625,
+      "median_tokens": 171.0,
+      "near_miss_distinct": 0.18181818181818182,
+      "near_miss_n": 11,
+      "lesson_recall": 0.6666666666666666,
+      "lesson_n": 75,
+      "lesson_emitted": 0.395,
+      "lesson_grounded": 0.13291139240506328,
+      "recoverable_distribution": {
+        "Yes": 215,
+        "invalid": 180,
+        "No": 4,
+        "Unknown": 1
+      },
+      "recoverable_gold_distribution": {
+        "Yes": 86,
+        "No": 23
+      },
+      "recoverable_known_distribution": {
+        "Yes": 52,
+        "invalid": 55,
+        "Unknown": 1,
+        "No": 1
+      }
+    },
+    "adapter": {
+      "n": 400,
+      "valid_schema": 1.0,
+      "factor_acc": 0.7325,
+      "phase_acc": 0.805,
+      "recoverable_acc": 0.8325,
+      "recoverable_known_acc": 0.5137614678899083,
+      "recoverable_known_n": 109,
+      "grounding_fail": 0.0325,
+      "median_tokens": 64.0,
+      "near_miss_distinct": 0.5454545454545454,
+      "near_miss_n": 11,
+      "lesson_recall": 0.6133333333333333,
+      "lesson_n": 75,
+      "lesson_emitted": 0.1775,
+      "lesson_grounded": 1.0,
+      "recoverable_distribution": {
+        "Yes": 63,
+        "Unknown": 326,
+        "No": 11
+      },
+      "recoverable_gold_distribution": {
+        "Yes": 86,
+        "No": 23
+      },
+      "recoverable_known_distribution": {
+        "Yes": 52,
+        "Unknown": 49,
+        "No": 8
+      }
+    }
+  },
+  "gates": {
+    "decision": "AUTOMATIC GATES PASS: rubric review still required before acceptance",
+    "checks": {
+      "schema_at_least_95_percent": true,
+      "schema_not_worse": true,
+      "factor_gain_15pp": true,
+      "phase_gain_10pp": true,
+      "grounding_at_most_10_percent": true,
+      "grounding_not_worse": true,
+      "recoverable_improves": true,
+      "recoverable_binary_support": true,
+      "recoverable_not_collapsed": true
+    }
+  },
+  "rubric_review": "pending",
+  "scoring_limitations": "Lexical specifics check misses semantic hallucinations; coded labels are noisy."
+}

@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "run_id": "debrief-qwen3-8b-resume-check",
+  "optimizer_steps": [
+    [
+      1
+    ],
+    [
+      2
+    ]
+  ],
+  "changed_adapter_tensors": 504,
+  "first_attempt_steps": 1,
+  "resumed_attempt_steps": 1,
+  "final_global_step": 2,
+  "train_sha256": "4d941b3e25880ca6bb42a266b6fcc6ca75d8a8750afc1bb75aed75916ab36954",
+  "checkpoint_before_sha256": "ff37d66c7c69d19610eedc6dce844c7e7dae582c626edb2739776e0a4b2af708",
+  "checkpoint_after_sha256": "5803a15f6d3391d56c0e8963de1e07fd4e96ee65706fd16ffefe56269f54201d"
+}

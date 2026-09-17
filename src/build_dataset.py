@@ -132,13 +132,32 @@ def build(rows, tokenizer, config):
                 "truncated": truncated,
                 "token_count": length,
                 "near_miss_gold": brief.what_almost_happened != "None stated",
+                "recovery_no_gold": brief.recoverable == "No",
             }
         )
     train, evaluation, reserve = grouped_split(
         eligible, config["train_size"], config["eval_size"], config["seed"]
     )
     counts.update(train=len(train), eval=len(evaluation), reserve=len(reserve))
-    return train, evaluation, reserve, dict(counts)
+    # Rare positive fields collapse to their empty value at ~1-3% prevalence
+    # (v0.1 never emitted a lesson). Exact copies of near-miss rows raise their
+    # share in the training split only; the held-out split keeps its natural mix.
+    # v0.2 measured near-miss recall 6/11 and completed-event ("No") recall 7/23
+    # on the held-out split, so both rare classes are duplicated in train only.
+    boosted = []
+    for key, flag in (
+        ("oversample_near_miss", "near_miss_gold"),
+        ("oversample_recovery_no", "recovery_no_gold"),
+    ):
+        copies = int(config.get(key, 1))
+        boosted += [row for row in train if row[flag]] * (copies - 1)
+    counts.update(
+        train_near_miss_rows=sum(row["near_miss_gold"] for row in train),
+        train_recovery_no_rows=sum(row["recovery_no_gold"] for row in train),
+        train_oversampled_copies=len(boosted),
+        train_rows_written=len(train) + len(boosted),
+    )
+    return train, evaluation, reserve, dict(counts), boosted
 
 
 def main():
@@ -174,8 +193,8 @@ def main():
     }
     write_json(out / "column_inventory.json", inventory)
     tokenizer = AutoTokenizer.from_pretrained(config["model_id"], revision=config["model_revision"])
-    train, evaluation, reserve, counts = build(rows, tokenizer, config)
-    for name, split in (("train", train), ("eval", evaluation)):
+    train, evaluation, reserve, counts, boosted = build(rows, tokenizer, config)
+    for name, split in (("train", train + boosted), ("eval", evaluation)):
         write_jsonl(out / f"{name}.jsonl", split)
     # Reserve IDs only: no reserve narrative inspection or training.
     (out / "reserve_ids.txt").write_text("\n".join(row["report_id"] for row in reserve) + "\n")
@@ -191,7 +210,11 @@ def main():
         "eval_sha256": sha256(out / "eval.jsonl"),
         "label_map_sha256": sha256(out / "label_map.json"),
         "system_prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode()).hexdigest(),
-        "gold_method": "source-checked synopsis; absent aircraft types generalized; coded class labels; no teacher model",
+        "gold_method": "source-checked synopsis; absent aircraft types generalized; coded class labels; "
+        "extractive lesson/near-miss/recovery rules (label_map version 4); no teacher model",
+        "label_map_version": label_map()["version"],
+        "oversample_near_miss": int(config.get("oversample_near_miss", 1)),
+        "oversample_recovery_no": int(config.get("oversample_recovery_no", 1)),
     }
     write_json(out / "manifest.json", manifest)
     for split_name, split in (("train", train), ("eval", evaluation)):
@@ -204,7 +227,9 @@ def main():
     report = "# Dataset build\n\n" + "\n".join(f"- {k}: {v}" for k, v in counts.items())
     report += f"\n\nSource: `{config['dataset_id']}@{info.sha}`\nLicense in source card: `{card['license']}`\n\n"
     report += "Split groups combine report IDs, linked accession IDs and duplicate narratives. Reserve contains IDs only. "
-    report += "Gold prose is source-checked synopsis; phase/factor labels and recoverability are noisy proxies. Human review is pending.\n"
+    report += "Gold prose is source-checked synopsis; phase/factor labels and recoverability are noisy proxies. "
+    report += "Lesson, near-miss and recovery fields are extracted by deterministic rules. "
+    report += "Near-miss and completed-event rows are duplicated in the training split only. Human review is pending.\n"
     (out / "build_report.md").write_text(report)
     print(report)
 

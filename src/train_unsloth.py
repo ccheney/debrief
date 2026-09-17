@@ -73,7 +73,7 @@ def main():
         config["lora_rank"] = config["lora_alpha"] = args.rank
     if args.attention_only:
         config["target_modules"] = ["q_proj", "k_proj", "v_proj", "o_proj"]
-    run_name = args.run_id or ("dry-run" if args.dry_run else "asrs-v01")
+    run_name = args.run_id or ("dry-run" if args.dry_run else Path(config["output_dir"]).name)
     if args.run_id:
         config["output_dir"] = f"checkpoints/{args.run_id}"
         config["adapter_dir"] = f"adapters/{args.run_id}"
@@ -83,7 +83,7 @@ def main():
         if args.dry_run and not args.run_id
         else config["adapter_dir"]
     )
-    meta_name = args.run_id or ("dry_run" if args.dry_run else "train")
+    meta_name = args.run_id or ("dry_run" if args.dry_run else run_name)
     meta_path = Path(f"eval_runs/{meta_name}_meta.json")
     if adapter_dir.exists() and not args.resume:
         raise ValueError(
@@ -294,13 +294,13 @@ def main():
         if metadata["status"] == "complete":
             write_json(adapter_dir / "train_meta.json", metadata)
             card = Path("MODEL_CARD.md").read_text()
-            card = card.replace("debrief-qwen3-8b-asrs-v01", adapter_dir.name)
-            card = card.replace(
-                "**Status: pipeline implemented; training and acceptance evaluation pending.**",
+            card = card.replace(Path(config["adapter_dir"]).name, adapter_dir.name)
+            status = (
                 "**Status: smoke adapter only; not accepted for use.**"
                 if args.dry_run
-                else "**Status: training completed; held-out acceptance evaluation pending.**",
+                else "**Status: training completed; held-out acceptance evaluation pending.**"
             )
+            card = re.sub(r"^\*\*Status:.*\*\*$", status, card, count=1, flags=re.M)
             (adapter_dir / "README.md").write_text(card)
 
 

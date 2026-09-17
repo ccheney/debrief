@@ -3,6 +3,7 @@
 import hashlib
 import json
 from pathlib import Path
+import re
 
 DEFAULT_CONFIG = "configs/train_qwen8b_qlora.yaml"
 
@@ -36,6 +37,14 @@ def read_config(path=DEFAULT_CONFIG):
     import yaml
 
     return yaml.safe_load(Path(path).read_text())
+
+
+def version_of(config):
+    """Experiment version used to namespace every artifact of one run."""
+    version = str(config.get("version") or Path(config["output_dir"]).name.rsplit("-", 1)[-1])
+    if not re.fullmatch(r"v\d{2,}", version):
+        raise ValueError(f"Configuration version must look like v02, got {version!r}")
+    return version
 
 
 def adapter_config(adapter, config_path=None):
